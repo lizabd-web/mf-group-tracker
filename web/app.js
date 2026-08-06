@@ -766,6 +766,13 @@ function dashboardProjects() {
   return Array.isArray(projects) ? projects : [];
 }
 
+function taskProjectLabel(task) {
+  const projectId = String(task && task.projectId || '').trim();
+  if (!projectId) return '';
+  const project = dashboardProjects().find(function (item) { return item.id === projectId; });
+  return project ? project.name : projectId;
+}
+
 function dashboardDepartments() {
   const seen = {};
   return dashboardUsers().map(function (user) {
@@ -1424,12 +1431,17 @@ function stage30ManagementMetrics() {
     active: active,
     completed: completed,
     overdue: overdueTasks(active),
+    dueSoon: active.filter(function (task) {
+      const dueDate = taskDueDate(task) || taskControlDate(task);
+      return dueDate && dueDate >= todayIsoBangkok() && dueDate <= addDaysIso(todayIsoBangkok(), 3);
+    }),
     blockers: blockedTasks(active),
     waiting: waitingTasks(active),
     withoutOwner: tasksWithoutOwner(active),
     withoutDirection: tasksWithoutDirection(active),
     withoutNextAction: tasksWithoutNextAction(active),
     withoutControlDate: tasksWithoutControlDate(active),
+    withoutDeadline: active.filter(function (task) { return !taskDueDate(task); }),
   };
 }
 
@@ -2461,6 +2473,7 @@ function taskMeta(task) {
   const meta = [
     'Ответственные: ' + taskAssigneesLabel(task),
     'Отдел / направление: ' + taskDirectionLabel(task),
+    taskProjectLabel(task) ? 'Проект: ' + taskProjectLabel(task) : '',
     taskDueDate(task) ? 'Срок: ' + humanDate(taskDueDate(task)) : 'Без срока',
     taskControlDate(task) ? 'Контроль: ' + humanDate(taskControlDate(task)) : '',
   ];
@@ -3465,6 +3478,7 @@ function managementTaskCardHtml(task) {
     '<div class="mf-task-meta">',
     '<span>Ответственные: <strong>' + escapeHtml(taskAssigneesLabel(task)) + '</strong></span>',
     '<span>Отдел / направление: <strong>' + escapeHtml(taskDirectionLabel(task)) + '</strong></span>',
+    taskProjectLabel(task) ? '<span>Проект: <strong>' + escapeHtml(taskProjectLabel(task)) + '</strong></span>' : '',
     '<span>Контроль: <strong>' + escapeHtml(taskControlDate(task) ? humanDate(taskControlDate(task)) : '-') + '</strong></span>',
     '<span>Срок: <strong>' + escapeHtml(taskDueDate(task) ? humanDate(taskDueDate(task)) : '-') + '</strong></span>',
     '</div>',
@@ -3485,6 +3499,7 @@ function managementMiniGrid(metrics) {
     '<div class="mf-mini-grid">',
     mfMiniStat('Активные задачи', metrics.active.length, 'cyan'),
     mfMiniStat('Просрочено', metrics.overdue.length, metrics.overdue.length ? 'critical' : 'green'),
+    mfMiniStat('Срок в 3 дня', metrics.dueSoon.length, metrics.dueSoon.length ? 'neutral' : 'green'),
     mfMiniStat('Блокеры', metrics.blockers.length, metrics.blockers.length ? 'critical' : 'green'),
     mfMiniStat('Ждут ответа', metrics.waiting.length, 'neutral'),
     mfMiniStat('Без ответственного', metrics.withoutOwner.length, metrics.withoutOwner.length ? 'critical' : 'green'),
@@ -3665,6 +3680,8 @@ function renderMfDepartments() {
   const canManageProjects = Boolean(profile.permissions && profile.permissions.canManageProjects);
   const projects = dashboardProjects().map(function (project) {
     const archived = project.status === 'Archived';
+    const projectTasks = activeTasks().filter(function (task) { return task.projectId === project.id; });
+    const overdueProjectTasks = projectTasks.filter(isOverdueTask);
     const actions = canManageProjects
       ? [
         '<div class="mf-action-row">',
@@ -3675,7 +3692,7 @@ function renderMfDepartments() {
         '</div>',
       ].join('')
       : '';
-    return '<article class="mf-department-card' + (archived ? ' archived-project' : '') + '"><div class="mf-task-head"><div><span class="mf-id">' + escapeHtml(project.id) + '</span><h3>' + escapeHtml(project.name) + '</h3></div>' + mfPill(projectStatusLabel(project.status), project.status === 'Active' ? 'green' : 'neutral') + '</div><p>' + escapeHtml(project.description || 'Без описания') + '</p><div class="mf-task-meta"><span>Отдел: <strong>' + escapeHtml(project.department) + '</strong></span><span>Ответственный: <strong>' + escapeHtml(project.ownerEmail || 'Не назначен') + '</strong></span></div>' + actions + '</article>';
+    return '<article class="mf-department-card' + (archived ? ' archived-project' : '') + '"><div class="mf-task-head"><div><span class="mf-id">' + escapeHtml(project.id) + '</span><h3>' + escapeHtml(project.name) + '</h3></div>' + mfPill(projectStatusLabel(project.status), project.status === 'Active' ? 'green' : 'neutral') + '</div><p>' + escapeHtml(project.description || 'Без описания') + '</p><div class="mf-task-meta"><span>Отдел: <strong>' + escapeHtml(project.department) + '</strong></span><span>Ответственный: <strong>' + escapeHtml(project.ownerEmail || 'Не назначен') + '</strong></span><span>Активные задачи: <strong>' + projectTasks.length + '</strong></span><span>Просрочено: <strong>' + overdueProjectTasks.length + '</strong></span></div>' + actions + '</article>';
   }).join('');
   const addButton = canManageProjects
     ? '<div class="mf-action-row"><button class="primary-button" type="button" data-project-action="create">Добавить проект</button></div>'
@@ -3692,12 +3709,14 @@ function renderMfDependencies() {
   const metrics = stage30ManagementMetrics();
   const riskGroups = [
     ['Просрочено', metrics.overdue, 'critical'],
+    ['Срок в ближайшие 3 дня', metrics.dueSoon, 'neutral'],
     ['Блокеры', metrics.blockers, 'critical'],
     ['Ждут ответа', metrics.waiting, 'neutral'],
     ['Без ответственного', metrics.withoutOwner, 'critical'],
     ['Без направления', metrics.withoutDirection, 'critical'],
     ['Без следующего действия', metrics.withoutNextAction, 'neutral'],
     ['Без срока и контрольной даты', metrics.withoutControlDate, 'neutral'],
+    ['Без срока', metrics.withoutDeadline, 'neutral'],
   ];
   const rows = riskGroups.map(function (group) {
     const title = group[0];
@@ -4393,6 +4412,11 @@ function openCreateTaskModal() {
   elements.createTaskForm.elements.category.innerHTML = '<option value="">Не назначено</option>' + dashboardDepartments().map(function (department) {
     return '<option value="' + escapeHtml(department) + '">' + escapeHtml(department) + '</option>';
   }).join('');
+  elements.createTaskForm.elements.projectId.innerHTML = '<option value="">Без проекта</option>' + dashboardProjects().filter(function (project) {
+    return project.status === 'Active' || !project.status;
+  }).map(function (project) {
+    return '<option value="' + escapeHtml(project.id) + '">' + escapeHtml(project.name + ' · ' + project.id) + '</option>';
+  }).join('');
   try {
     const draft = JSON.parse(window.sessionStorage.getItem(createTaskDraftStorageKey) || '{}');
     Object.keys(draft).forEach(function (field) {
@@ -4520,7 +4544,7 @@ function saveCreateTaskDraft() {
   try {
     const data = new FormData(elements.createTaskForm);
     const draft = {};
-    ['title', 'owner', 'category', 'status', 'priority', 'nextAction', 'deadline', 'controlDate', 'reminder', 'comment'].forEach(function (field) {
+    ['title', 'owner', 'projectId', 'category', 'status', 'priority', 'nextAction', 'deadline', 'controlDate', 'reminder', 'comment'].forEach(function (field) {
       const value = String(data.get(field) || '').trim();
       if (value) draft[field] = value;
     });
@@ -4842,6 +4866,7 @@ function createTaskPayloadFromForm() {
     title: String(formData.get('title') || '').trim(),
     owner: String(formData.get('owner') || '').trim(),
     collaboratorEmails: formData.getAll('collaboratorEmails').map(function (email) { return String(email || '').trim(); }).filter(Boolean).join(','),
+    projectId: String(formData.get('projectId') || '').trim(),
     category: String(formData.get('category') || '').trim(),
     status: String(formData.get('status') || '').trim(),
     priority: String(formData.get('priority') || '').trim(),
@@ -4912,6 +4937,7 @@ async function handleCreateTaskSubmit(event) {
     const createResponse = await BAFoxClient.createTask(Object.assign({}, payload, identityRequestParams()));
     performanceState.createTaskMs = Math.round(performance.now() - createStartedAt);
     performanceState.createTaskBackend = createResponse && createResponse.performance ? createResponse.performance : null;
+    addCreatedTaskToCurrentQueue(createResponse, payload);
     elements.createTaskForm.reset();
     window.sessionStorage.removeItem(createTaskDraftStorageKey);
     createTaskState = { status: 'success', message: 'Задача добавлена · ' + formatDurationMs(performanceState.createTaskMs) };
@@ -5013,6 +5039,29 @@ async function refreshDashboardAfterCreate() {
     flashMessage = 'Задача добавлена. Обновите список вручную, если она не появилась сразу.';
     render();
   }
+}
+
+function addCreatedTaskToCurrentQueue(createResponse, payload) {
+  const data = dashboardState.data;
+  if (!data || !data.open || !Array.isArray(data.open.tasks)) return;
+  const created = {
+    id: createResponse && createResponse.taskId || '',
+    title: payload.title,
+    owner: payload.owner,
+    collaboratorEmails: payload.collaboratorEmails,
+    category: payload.category,
+    projectId: payload.projectId,
+    status: payload.status,
+    priority: payload.priority,
+    steps: payload.nextAction,
+    deadline: payload.deadline,
+    controlDate: payload.controlDate,
+    nextReminder: payload.controlDate || payload.reminder,
+    comment: payload.comment,
+    source: 'BA Fox Web',
+    appSource: 'web',
+  };
+  data.open.tasks = uniqueTasks([created].concat(data.open.tasks));
 }
 
 async function handleManualRefresh() {

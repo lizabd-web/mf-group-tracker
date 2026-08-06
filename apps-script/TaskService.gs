@@ -41,6 +41,7 @@ function baFoxNormalizeTaskRow(row, headers) {
   var createdByEmail = normalizeWorkspaceEmail_(baFoxTaskOptionalValue_(row, headerMap, 'CREATED_BY_EMAIL'));
   var createdByUserId = baFoxSafeString(baFoxTaskOptionalValue_(row, headerMap, 'CREATED_BY_USER_ID'));
   var visibility = baFoxSafeString(baFoxTaskOptionalValue_(row, headerMap, 'VISIBILITY')) || 'unassigned';
+  var projectId = baFoxSafeString(baFoxTaskOptionalValue_(row, headerMap, 'PROJECT_ID'));
   return {
     id: row[BA_FOX_CONFIG.TASK_COLUMNS.ID - 1] || '',
     date: baFoxTaskDateValue(row[BA_FOX_CONFIG.TASK_COLUMNS.DATE - 1]),
@@ -69,6 +70,7 @@ function baFoxNormalizeTaskRow(row, headers) {
     createdByEmail: createdByEmail,
     createdByUserId: createdByUserId,
     visibility: visibility,
+    projectId: projectId,
     identityFieldsAvailable: baFoxTaskIdentityFieldsAvailable_(headerMap.headers),
     createdAt: row[BA_FOX_CONFIG.TASK_COLUMNS.CREATED_AT - 1] || '',
     updatedAt: row[BA_FOX_CONFIG.TASK_COLUMNS.UPDATED_AT - 1] || '',
@@ -374,6 +376,7 @@ function baFoxCreateTaskAllowedKeys_() {
     'title',
     'owner',
     'collaboratorEmails',
+    'projectId',
     'organization',
     'nextAction',
     'deadline',
@@ -504,6 +507,7 @@ function baFoxCreateTaskIdentityMetadata_(normalized, profile) {
     createdByEmail: profile && profile.isAuthenticated ? normalizeWorkspaceEmail_(profile.email) : '',
     createdByUserId: profile && profile.isAuthenticated ? baFoxSafeString(profile.userId) : '',
     visibility: baFoxSafeString(normalized.visibility || 'team'),
+    projectId: baFoxSafeString(normalized.projectId),
     ownerResolution: {
       input: baFoxSafeString(normalized.owner || 'Лиза'),
       matched: Boolean(ownerUser),
@@ -514,6 +518,20 @@ function baFoxCreateTaskIdentityMetadata_(normalized, profile) {
     collaboratorResolution: collaboratorResolution,
     warnings: warnings
   };
+}
+
+function baFoxValidateCreateTaskProject_(projectId) {
+  var normalizedId = baFoxSafeString(projectId);
+  if (!normalizedId) {
+    return { ok: true, projectId: '' };
+  }
+  var project = baFoxListProjects_().filter(function(item) {
+    return baFoxSafeString(item.id) === normalizedId;
+  })[0];
+  if (!project || baFoxNormalizeMatchValue_(project.status) === 'archived') {
+    return { ok: false, projectId: normalizedId };
+  }
+  return { ok: true, projectId: normalizedId };
 }
 
 function baFoxResolveCreateTaskCollaborators_(value, ownerUser) {
@@ -551,7 +569,7 @@ function baFoxSafeCreateTask(request) {
     });
   }
 
-  var createFields = ['title', 'owner', 'collaboratorEmails', 'organization', 'nextAction', 'deadline', 'controlDate', 'reminder', 'status', 'priority', 'category', 'comment'];
+  var createFields = ['title', 'owner', 'collaboratorEmails', 'projectId', 'organization', 'nextAction', 'deadline', 'controlDate', 'reminder', 'status', 'priority', 'category', 'comment'];
   var objectFields = baFoxValidateCreateTaskScalar_(normalized, createFields);
   if (objectFields.length) {
     return baFoxError('VALIDATION_ERROR', 'Create task fields must be simple text values.', {
@@ -618,6 +636,13 @@ function baFoxSafeCreateTask(request) {
     return baFoxError('SAFE_WRITES_DISABLED', 'Safe task creation is disabled.', {});
   }
 
+  var projectCheck = baFoxValidateCreateTaskProject_(normalized.projectId);
+  if (!projectCheck.ok) {
+    return baFoxError('VALIDATION_ERROR', 'Project must be an active project from Projects.', {
+      projectId: projectCheck.projectId
+    });
+  }
+
   var now = baFoxIsoNow();
   var taskId = baFoxBuildSafeCreateTaskId_(now);
   var actorProfile = identityCheck.profile || {};
@@ -657,6 +682,7 @@ function baFoxSafeCreateTask(request) {
       title: normalized.title || '',
       owner: normalized.owner || 'Лиза',
       collaboratorEmails: identityMetadata.collaboratorEmails,
+      projectId: identityMetadata.projectId,
       organization: normalized.organization || '',
       category: normalized.category || '',
       status: normalized.status || 'Не начато',
