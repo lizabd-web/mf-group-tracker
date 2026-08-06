@@ -38,6 +38,7 @@
   });
   const CREATE_TASK_MESSAGES = Object.freeze({
     FIELDS_NOT_ALLOWED: 'Проверьте поля задачи: часть данных не поддерживается текущей схемой.',
+    TASK_IDENTITY_SCHEMA_INCOMPLETE: 'Дополнительных ответственных пока нельзя сохранить: в Tasks нужны колонки Collaborator Emails и Collaborator User IDs.',
     SAFE_WRITES_DISABLED: 'Безопасная запись выключена. Создание задач недоступно.',
     TASKS_SHEET_MISSING: 'Лист Tasks недоступен.',
     TASK_APPEND_FAILED: 'Не удалось добавить задачу в Tasks.',

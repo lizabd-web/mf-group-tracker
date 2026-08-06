@@ -3,8 +3,8 @@ const viewLabels = Object.freeze({
   dashboard: ['Главная', 'Рабочая сводка'],
   myTasks: ['Мои задачи', 'Личная очередь и совместная работа'],
   myFocus: ['Мой фокус', 'Личный фокус из командной операционной очереди'],
-  team: ['Команда', 'Нагрузка и главные задачи команды'],
-  departments: ['Направления', 'Активная работа по направлениям'],
+  team: ['Команда', 'Все активные задачи и нагрузка команды'],
+  departments: ['Проекты', 'Проекты команды и их статус'],
   dependencies: ['Риски', 'Просрочка, блокеры и ожидания'],
   reports: ['Отчёты', 'Дневные, недельные, отделовые и управленческие сводки'],
   settings: ['Профиль', 'Аккаунт и настройки интерфейса'],
@@ -1514,7 +1514,8 @@ function taskRelationshipToProfile(task, profile) {
 
 function personalLiveTasks(profile) {
   return uniqueTasks(allLoadedTasks().filter(function (task) {
-    return taskRelationshipToProfile(task, profile).related;
+    const relationship = taskRelationshipToProfile(task, profile);
+    return relationship.owner || relationship.collaborator;
   }));
 }
 
@@ -2378,7 +2379,7 @@ function statusText() {
       : 'Обзор показывает активные задачи, просрочку, блокеры, ожидания и пустые поля из live-данных.';
   }
   if (activeTab === 'myTasks') {
-    return 'Личная очередь собрана из live-задач, где вы указаны ответственным, участником или автором.';
+    return 'Личная очередь собрана из live-задач, где вы указаны основным ответственным или соисполнителем.';
   }
   if (activeTab === 'myFocus') {
     return 'Личный фокус считается из приоритета, блокеров и контрольных дат. Это не новое поле для записи.';
@@ -2387,7 +2388,7 @@ function statusText() {
     return 'Команда показывает нагрузку по ответственным и три главные задачи каждого.';
   }
   if (activeTab === 'departments') {
-    return 'Направления собраны по отделам активных сотрудников; проекты добавляются отдельно.';
+    return 'Проекты показывают статус, ответственного и описание. Связь задач с проектом добавим после согласования полей таблицы.';
   }
   if (activeTab === 'dependencies') {
     return 'Риски и зависшие показывают просрочку, блокеры, ожидания и задачи без владельца, направления, следующего шага или даты.';
@@ -2599,6 +2600,11 @@ function canManageTaskTrash(task) {
   return taskRelationshipToProfile(task, profile).createdBy;
 }
 
+function canCompleteTask(task) {
+  const relationship = taskRelationshipToProfile(task, identityDisplayProfile());
+  return relationship.owner || relationship.collaborator;
+}
+
 function actionButtonsHtml(task) {
   const disabled = !safeWritesEnabled();
   const state = taskActionState[task.id] || {};
@@ -2667,7 +2673,7 @@ function taskCardHtml(task) {
     '</details>',
     '</div>',
     '<aside class="task-primary">',
-    '<button class="complete-task-button" type="button" data-task-id="' + escapeHtml(task.id) + '" data-task-action="markDone"' + (!safeWritesEnabled() || (taskActionState[task.id] || {}).status === 'loading' ? ' disabled' : '') + '>' + escapeHtml(((taskActionState[task.id] || {}).status === 'loading' && (taskActionState[task.id] || {}).action === 'markDone') ? '...' : '✓ Выполнено') + '</button>',
+    '<button class="complete-task-button" type="button" title="' + escapeHtml(canCompleteTask(task) ? 'Отметить задачу выполненной' : 'Закрыть задачу может только основной ответственный или соисполнитель') + '" data-task-id="' + escapeHtml(task.id) + '" data-task-action="markDone"' + (!safeWritesEnabled() || !canCompleteTask(task) || (taskActionState[task.id] || {}).status === 'loading' ? ' disabled' : '') + '>' + escapeHtml(((taskActionState[task.id] || {}).status === 'loading' && (taskActionState[task.id] || {}).action === 'markDone') ? '...' : '✓ Выполнено') + '</button>',
     '</aside>',
     '</div>',
     '</article>',
@@ -3211,7 +3217,7 @@ function auditSeverity(item) {
   if (['DUPLICATE_ID', 'NEAR_DUPLICATE', 'CORRUPTED_FIELD'].includes(issueType)) {
     return 'high';
   }
-  if (item.needsLisaApproval || ['STATUS_NORMALIZATION', 'PRIORITY_NORMALIZATION', 'ARCHIVE_CANDIDATE'].includes(issueType)) {
+  if (item.needsAdminApproval || ['STATUS_NORMALIZATION', 'PRIORITY_NORMALIZATION', 'ARCHIVE_CANDIDATE'].includes(issueType)) {
     return 'medium';
   }
   if (confidence < 0.6 || ['TASK_TYPE_MISSING', 'OWNER_MISSING', 'ACTIVE_LEGACY_ROW'].includes(issueType)) {
@@ -3290,7 +3296,7 @@ function reviewPreviewRows(items) {
       item.issueType || '-',
       item.severity,
       item.suggestedAction || 'REVIEW_REQUIRED',
-      item.needsLisaApproval ? 'нужно согласование Lisa' : 'без согласования',
+      item.needsAdminApproval ? 'нужно согласование администратора' : 'без согласования',
     ].join(' | ');
   });
 }
@@ -3391,7 +3397,7 @@ function renderAudit() {
         '<span><strong>Предложение:</strong> ' + escapeHtml(item.proposedValue || '-') + '</span>',
         '<span><strong>Уверенность:</strong> ' + escapeHtml(item.confidence == null ? '-' : item.confidence) + '</span>',
         '<span><strong>Действие:</strong> ' + escapeHtml(item.suggestedAction || 'REVIEW_REQUIRED') + '</span>',
-        '<span><strong>Согласование:</strong> ' + (item.needsLisaApproval ? 'Нужно согласование Lisa' : 'Не требуется') + '</span>',
+        '<span><strong>Согласование:</strong> ' + (item.needsAdminApproval ? 'Нужно согласование администратора' : 'Не требуется') + '</span>',
         '</div>',
         '<p>' + escapeHtml(item.notes || '') + '</p>',
         '</article>',
@@ -3553,7 +3559,7 @@ function renderMfDashboard() {
   const nextTasks = personal.slice().sort(compareTaskUrgency).slice(0, 5);
   elements.taskList.innerHTML = [
     '<section class="mf-page-grid">',
-    '<article class="mf-exec-card compact"><span>Мой рабочий день</span><h3>' + escapeHtml(attention.length ? 'Есть задачи, которые требуют внимания.' : 'Срочных сигналов по вашим задачам нет.') + '</h3><p>Здесь показываются только задачи, где вы указаны ответственным, участником или автором.</p></article>',
+    '<article class="mf-exec-card compact"><span>Мой рабочий день</span><h3>' + escapeHtml(attention.length ? 'Есть задачи, которые требуют внимания.' : 'Срочных сигналов по вашим задачам нет.') + '</h3><p>Здесь показываются только задачи, где вы указаны основным ответственным или соисполнителем.</p></article>',
     '<section><div class="mf-section-title"><h3>Требуют внимания</h3><span>' + attention.length + '</span></div>' + (attention.length ? '<div class="task-group-list">' + attention.slice(0, 5).map(taskCardHtml).join('') + '</div>' : '<article class="empty-state"><strong>Всё спокойно</strong><span>Просрочка, блокеры и ожидания не найдены.</span></article>') + '</section>',
     '<section><div class="mf-section-title"><h3>Следующие задачи</h3><span>' + nextTasks.length + '</span></div>' + (nextTasks.length ? '<div class="task-group-list">' + nextTasks.map(taskCardHtml).join('') + '</div>' : '<article class="empty-state"><strong>Очередь пуста</strong><span>Попросите назначить вас ответственным или участником задачи.</span></article>') + '</section>',
     '</section>',
@@ -3581,7 +3587,7 @@ function renderMfMyTasks() {
     '</div>',
     '<section><div class="mf-section-title"><h3>Требуют внимания</h3><span>' + attention.length + '</span></div>' + (attention.length ? '<div class="task-group-list">' + attention.map(taskCardHtml).join('') + '</div>' : '<article class="empty-state"><strong>Срочных задач нет</strong><span>Просрочка, блокеры и ожидания не найдены.</span></article>') + '</section>',
     '<section><div class="mf-section-title"><h3>Моя очередь</h3><span>' + owned.length + '</span></div>' + (owned.length ? '<div class="task-group-list">' + owned.map(taskCardHtml).join('') + '</div>' : '<article class="empty-state"><strong>Задачи не назначены</strong><span>Проверьте поле «Ответственный» или данные профиля.</span></article>') + '</section>',
-    '<section><div class="mf-section-title"><h3>Совместная работа</h3><span>' + shared.length + '</span></div>' + (shared.length ? '<div class="task-group-list">' + shared.map(taskCardHtml).join('') + '</div>' : '<article class="empty-state"><strong>Совместных задач нет</strong><span>Задачи появятся после добавления вас как участника или автора.</span></article>') + '</section>',
+    '<section><div class="mf-section-title"><h3>Совместная работа</h3><span>' + shared.length + '</span></div>' + (shared.length ? '<div class="task-group-list">' + shared.map(taskCardHtml).join('') + '</div>' : '<article class="empty-state"><strong>Совместных задач нет</strong><span>Задачи появятся после добавления вас как соисполнителя.</span></article>') + '</section>',
     '</section>',
   ].join('');
 }
@@ -3628,9 +3634,15 @@ function renderMfTeam() {
       '</article>',
     ].join('');
   }).join('');
-  elements.taskList.innerHTML = rows
-    ? '<section class="mf-card-grid">' + rows + '</section>'
-    : '<article class="empty-state"><strong>Команда не настроена</strong><span>Добавьте активных сотрудников в лист Users.</span></article>';
+  const teamTasks = activeTasks();
+  elements.taskList.innerHTML = [
+    '<section><div class="mf-section-title"><h3>Все активные задачи команды</h3><span>' + teamTasks.length + '</span></div>',
+    managementTaskList(teamTasks, 'Активных задач нет', 'В общей очереди пока нет активных задач.'),
+    '</section>',
+    '<section><div class="mf-section-title"><h3>Нагрузка по ответственным</h3><span>' + ownerWorkloadRows(activeTasks()).filter(function (owner) { return owner.active.length; }).length + '</span></div>',
+    rows ? '<div class="mf-card-grid">' + rows + '</div>' : '<article class="empty-state"><strong>Команда не настроена</strong><span>Добавьте активных сотрудников в лист Users.</span></article>',
+    '</section>',
+  ].join('');
 }
 
 function projectStatusLabel(status) {
@@ -3649,23 +3661,6 @@ function findDashboardProject(projectId) {
 }
 
 function renderMfDepartments() {
-  const cards = directionWorkloadRows(activeTasks()).map(function (direction) {
-    const urgentTasks = direction.active.slice().sort(compareTaskUrgency).slice(0, 3);
-    return [
-      '<article class="mf-department-card">',
-      '<div class="mf-task-head"><div><span class="mf-id">Отдел</span><h3>' + escapeHtml(direction.label) + '</h3></div>' + mfPill('Из Users', direction.id === 'unassigned' ? 'neutral' : 'green') + '</div>',
-      '<p>Направление сформировано по отделам активных членов команды.</p>',
-      '<div class="mf-task-meta">',
-      '<span>Активные задачи: <strong>' + direction.active.length + '</strong></span>',
-      '<span>Блокеры: <strong>' + direction.blockers.length + '</strong></span>',
-      '<span>Ждут ответа: <strong>' + direction.waiting.length + '</strong></span>',
-      '<span>Просрочено: <strong>' + direction.overdue.length + '</strong></span>',
-      '</div>',
-      '<div class="mf-section-title compact"><h3>Последние / срочные</h3><span>' + urgentTasks.length + '</span></div>',
-      managementTaskList(urgentTasks, 'Нет активных задач', 'Для этого направления нет активных задач.', 3),
-      '</article>',
-    ].join('');
-  }).join('');
   const profile = identityDisplayProfile();
   const canManageProjects = Boolean(profile.permissions && profile.permissions.canManageProjects);
   const projects = dashboardProjects().map(function (project) {
@@ -3690,9 +3685,6 @@ function renderMfDepartments() {
     '<section><div class="mf-section-title"><h3>Проекты</h3><span>' + dashboardProjects().length + '</span></div>',
     projects ? '<div class="mf-card-grid departments">' + projects + '</div>' : '<article class="empty-state"><strong>Проектов пока нет</strong><span>Начните с первого рабочего проекта.</span></article>',
     '</section>',
-    '<section><div class="mf-section-title"><h3>Отделы</h3><span>' + dashboardDepartments().length + '</span></div>',
-    cards ? '<div class="mf-card-grid departments">' + cards + '</div>' : '<article class="empty-state"><strong>Отделы не настроены</strong><span>Укажите отделы в листе Users.</span></article>',
-    '</section>',
   ].join('');
 }
 
@@ -3703,9 +3695,9 @@ function renderMfDependencies() {
     ['Блокеры', metrics.blockers, 'critical'],
     ['Ждут ответа', metrics.waiting, 'neutral'],
     ['Без ответственного', metrics.withoutOwner, 'critical'],
-    ['Без отдела / направления', metrics.withoutDirection, 'critical'],
+    ['Без направления', metrics.withoutDirection, 'critical'],
     ['Без следующего действия', metrics.withoutNextAction, 'neutral'],
-    ['Без контрольной даты / срока', metrics.withoutControlDate, 'neutral'],
+    ['Без срока и контрольной даты', metrics.withoutControlDate, 'neutral'],
   ];
   const rows = riskGroups.map(function (group) {
     const title = group[0];
@@ -4528,7 +4520,7 @@ function saveCreateTaskDraft() {
   try {
     const data = new FormData(elements.createTaskForm);
     const draft = {};
-    ['title', 'owner', 'category', 'status', 'priority', 'nextAction', 'controlDate', 'reminder', 'comment'].forEach(function (field) {
+    ['title', 'owner', 'category', 'status', 'priority', 'nextAction', 'deadline', 'controlDate', 'reminder', 'comment'].forEach(function (field) {
       const value = String(data.get(field) || '').trim();
       if (value) draft[field] = value;
     });
@@ -4844,6 +4836,7 @@ async function handleEditTaskSubmit(event) {
 
 function createTaskPayloadFromForm() {
   const formData = new FormData(elements.createTaskForm);
+  const deadline = String(formData.get('deadline') || '').trim();
   const controlDate = String(formData.get('controlDate') || '').trim();
   return {
     title: String(formData.get('title') || '').trim(),
@@ -4853,8 +4846,8 @@ function createTaskPayloadFromForm() {
     status: String(formData.get('status') || '').trim(),
     priority: String(formData.get('priority') || '').trim(),
     nextAction: String(formData.get('nextAction') || '').trim(),
-    deadline: controlDate,
-    controlDate: controlDate,
+    deadline: deadline,
+    controlDate: controlDate || deadline,
     reminder: String(formData.get('reminder') || '').trim(),
     comment: String(formData.get('comment') || '').trim(),
   };
@@ -4923,7 +4916,7 @@ async function handleCreateTaskSubmit(event) {
     window.sessionStorage.removeItem(createTaskDraftStorageKey);
     createTaskState = { status: 'success', message: 'Задача добавлена · ' + formatDurationMs(performanceState.createTaskMs) };
     elements.createTaskModal.hidden = true;
-    activeTab = 'all';
+    activeTab = 'team';
     activeTaskFilter = 'active';
     activeCategoryFilter = 'all';
     activeOwnerFilter = 'all';

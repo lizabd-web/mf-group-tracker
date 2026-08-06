@@ -225,6 +225,23 @@ test('task trash actions are reversible and members can manage only tasks they c
   }), true);
 });
 
+test('only a task owner or collaborator can mark a task as done', function () {
+  const context = loadAppsScriptAuthorization();
+  context.BA_FOX_CONFIG.TASK_COLUMNS = {};
+  vm.runInContext(fs.readFileSync(path.join(root, 'apps-script/TaskService.gs'), 'utf8'), context);
+
+  const task = {
+    ownerEmail: 'owner@mfstream.io',
+    ownerUserId: 'USR-OWNER',
+    collaboratorEmails: 'collaborator@mfstream.io',
+    collaboratorUserIds: 'USR-COLLABORATOR',
+  };
+
+  assert.equal(context.baFoxProfileCanCompleteTask_({ email: 'owner@mfstream.io', userId: 'USR-OWNER' }, task), true);
+  assert.equal(context.baFoxProfileCanCompleteTask_({ email: 'collaborator@mfstream.io', userId: 'USR-COLLABORATOR' }, task), true);
+  assert.equal(context.baFoxProfileCanCompleteTask_({ email: 'other@mfstream.io', userId: 'USR-OTHER' }, task), false);
+});
+
 test('web client does not expose mock dashboard data when Google sign-in is missing', async function () {
   const { client, requests } = loadWebClient({}, function () {
     return {

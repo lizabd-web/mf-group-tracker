@@ -782,6 +782,26 @@ function baFoxProfileCanManageTrashedTask_(profile, task) {
   );
 }
 
+function baFoxProfileCanCompleteTask_(profile, task) {
+  var email = normalizeWorkspaceEmail_(profile && profile.email);
+  var userId = baFoxSafeString(profile && profile.userId).toLowerCase();
+  var taskOwnerLabel = baFoxNormalizeMatchValue_(task && (task.ownerLabel || task.owner));
+  var profileOwnerLabels = [profile && profile.defaultOwnerLabel, profile && profile.displayName, profile && profile.email]
+    .map(baFoxNormalizeMatchValue_)
+    .filter(Boolean);
+  var collaboratorEmails = baFoxSplitIdentityList_(task && task.collaboratorEmails, true);
+  var collaboratorUserIds = baFoxSplitIdentityList_(task && task.collaboratorUserIds, false).map(function(id) {
+    return baFoxSafeString(id).toLowerCase();
+  });
+  return Boolean(
+    (email && normalizeWorkspaceEmail_(task && task.ownerEmail) === email)
+    || (userId && baFoxSafeString(task && task.ownerUserId).toLowerCase() === userId)
+    || (taskOwnerLabel && profileOwnerLabels.indexOf(taskOwnerLabel) !== -1)
+    || (email && collaboratorEmails.indexOf(email) !== -1)
+    || (userId && collaboratorUserIds.indexOf(userId) !== -1)
+  );
+}
+
 function baFoxValidateSafeReminder_(value) {
   var reminder = baFoxSafeString(value);
   return /^\d{4}-\d{2}-\d{2}(T| )\d{2}:\d{2}(:\d{2})?$/.test(reminder);
@@ -858,6 +878,24 @@ function baFoxTaskAction(request) {
   }
 
   var previous = baFoxNormalizeTaskRow(match.row, match.headers);
+  if (normalized.action === 'markDone'
+      && !baFoxProfileCanCompleteTask_(identityCheck.profile, previous)) {
+    baFoxAuditTaskAction({
+      timestamp: baFoxIsoNow(),
+      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'BA Fox Web',
+      taskId: normalized.taskId,
+      action: normalized.action,
+      routeAction: 'taskAction/' + normalized.action,
+      source: 'web',
+      result: 'failed',
+      errorCode: 'WRITE_FORBIDDEN'
+    });
+    return baFoxError(
+      'WRITE_FORBIDDEN',
+      'Only the primary task owner or a listed collaborator can mark this task as done.',
+      { taskId: normalized.taskId }
+    );
+  }
   if (actionConfig.preserveStatus === true
       && !baFoxProfileCanManageTrashedTask_(identityCheck.profile, previous)) {
     baFoxAuditTaskAction({
