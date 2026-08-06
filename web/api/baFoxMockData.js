@@ -123,7 +123,7 @@
         proposedValue: 'MOCK-001',
         confidence: 0.95,
         suggestedAction: 'MERGE_CONTEXT_ONLY',
-        needsLisaApproval: true,
+        needsAdminApproval: true,
         notes: 'Duplicate task ID appears in demo audit output. Review before choosing a primary row.',
       },
       {
@@ -134,7 +134,7 @@
         proposedValue: 'Ждём ответ',
         confidence: 0.85,
         suggestedAction: 'NORMALIZE',
-        needsLisaApproval: true,
+        needsAdminApproval: true,
         notes: 'Demo-only suggestion. No cleanup action is available in the UI.',
       },
       {
@@ -145,7 +145,7 @@
         proposedValue: '',
         confidence: 0.75,
         suggestedAction: 'REVIEW_REQUIRED',
-        needsLisaApproval: true,
+        needsAdminApproval: true,
         notes: 'Same organization and normalized title appear elsewhere. Review only.',
       },
       {
@@ -156,7 +156,7 @@
         proposedValue: 'Средний',
         confidence: 0.9,
         suggestedAction: 'NORMALIZE',
-        needsLisaApproval: true,
+        needsAdminApproval: true,
         notes: 'Priority mapping can be reviewed before any future cleanup write stage.',
       },
       {
@@ -167,7 +167,7 @@
         proposedValue: 'work',
         confidence: 0.5,
         suggestedAction: 'REVIEW_REQUIRED',
-        needsLisaApproval: true,
+        needsAdminApproval: true,
         notes: 'Active row has missing V2 task type. Display-only default is not a write decision.',
       },
       {
@@ -178,7 +178,7 @@
         proposedValue: 'Lisa',
         confidence: 0.5,
         suggestedAction: 'REVIEW_REQUIRED',
-        needsLisaApproval: true,
+        needsAdminApproval: true,
         notes: 'Active row has missing owner. Lisa approval is required before cleanup.',
       },
       {
@@ -189,7 +189,7 @@
         proposedValue: '',
         confidence: 0.65,
         suggestedAction: 'REVIEW_REQUIRED',
-        needsLisaApproval: true,
+        needsAdminApproval: true,
         notes: 'Human-readable date should be reviewed before a machine control date is added.',
       },
       {
@@ -200,7 +200,7 @@
         proposedValue: 'Архив',
         confidence: 0.65,
         suggestedAction: 'ARCHIVE_AFTER_APPROVAL',
-        needsLisaApproval: true,
+        needsAdminApproval: true,
         notes: 'Suggestion only. The dashboard does not archive or modify rows.',
       },
     ],

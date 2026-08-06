@@ -228,7 +228,7 @@ function baFoxAuditArchiveCandidate_(entry, items) {
   baFoxAuditAddItem_(items, entry, 'ARCHIVE_CANDIDATE', task.status, 'Архив', 0.65, 'ARCHIVE_AFTER_APPROVAL', true, 'Completed/cancelled row may be hidden from active views after backup and approval. Do not delete.');
 }
 
-function baFoxAuditAddItem_(items, entry, issueType, currentValue, proposedValue, confidence, suggestedAction, needsLisaApproval, notes) {
+function baFoxAuditAddItem_(items, entry, issueType, currentValue, proposedValue, confidence, suggestedAction, needsAdminApproval, notes) {
   items.push({
     rowNumber: entry.rowNumber,
     taskId: baFoxSafeString(entry.task.id),
@@ -237,7 +237,7 @@ function baFoxAuditAddItem_(items, entry, issueType, currentValue, proposedValue
     proposedValue: baFoxSafeString(proposedValue),
     confidence: confidence,
     suggestedAction: suggestedAction,
-    needsLisaApproval: needsLisaApproval,
+    needsAdminApproval: needsAdminApproval,
     notes: notes
   });
 }

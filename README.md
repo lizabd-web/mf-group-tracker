@@ -37,8 +37,8 @@ BA Fox Control Center turns Lisa's daily Telegram-style BA workflow into a contr
 
 ## Current Google Sheet
 
-BA Fox Control Center:
-https://docs.google.com/spreadsheets/d/1TJjQ0Uc_olOxL8kGW3tmd-e2wCfRoPkxbOEDOBs60F4/edit
+Рабочая Google Sheet предоставляется назначенным сотрудникам через
+корпоративный доступ. Не публикуйте её прямую ссылку в репозитории.
 
 ## Test contour
 
