@@ -111,7 +111,8 @@ function baFoxTaskIdentityColumnDefinitions_() {
     { field: 'COLLABORATOR_USER_IDS', key: 'collaboratorUserIds', header: 'Collaborator User IDs', aliases: ['Collaborator User IDs', 'collaboratorUserIds', 'collaborator_user_ids', 'Участники userId'] },
     { field: 'CREATED_BY_EMAIL', key: 'createdByEmail', header: 'Created By Email', aliases: ['Created By Email', 'createdByEmail', 'created_by_email', 'Создал email'] },
     { field: 'CREATED_BY_USER_ID', key: 'createdByUserId', header: 'Created By User ID', aliases: ['Created By User ID', 'createdByUserId', 'created_by_user_id', 'Создал userId'] },
-    { field: 'VISIBILITY', key: 'visibility', header: 'Visibility', aliases: ['Visibility', 'visibility', 'Видимость'] }
+    { field: 'VISIBILITY', key: 'visibility', header: 'Visibility', aliases: ['Visibility', 'visibility', 'Видимость'] },
+    { field: 'PROJECT_ID', key: 'projectId', header: 'Project ID', aliases: ['Project ID', 'projectId', 'project_id', 'ID проекта'] }
   ];
 }
 
@@ -295,7 +296,8 @@ function baFoxOptionalTaskFieldNames_(field) {
     COLLABORATOR_USER_IDS: ['Collaborator User IDs', 'collaboratorUserIds', 'collaborator_user_ids', 'Участники userId'],
     CREATED_BY_EMAIL: ['Created By Email', 'createdByEmail', 'created_by_email', 'Создал email'],
     CREATED_BY_USER_ID: ['Created By User ID', 'createdByUserId', 'created_by_user_id', 'Создал userId'],
-    VISIBILITY: ['Visibility', 'visibility', 'Видимость']
+    VISIBILITY: ['Visibility', 'visibility', 'Видимость'],
+    PROJECT_ID: ['Project ID', 'projectId', 'project_id', 'ID проекта']
   };
   return names[field] || [];
 }
@@ -528,9 +530,15 @@ function baFoxAppendSafeCreateTaskRow(rowValues, identityMetadata) {
       writeOptionalCell_(finalRowValues, headerMap, baFoxOptionalTaskFieldNames_('CREATED_BY_EMAIL'), identityMetadata.createdByEmail || '');
       writeOptionalCell_(finalRowValues, headerMap, baFoxOptionalTaskFieldNames_('CREATED_BY_USER_ID'), identityMetadata.createdByUserId || '');
       writeOptionalCell_(finalRowValues, headerMap, baFoxOptionalTaskFieldNames_('VISIBILITY'), identityMetadata.visibility || 'team');
+      writeOptionalCell_(finalRowValues, headerMap, baFoxOptionalTaskFieldNames_('PROJECT_ID'), identityMetadata.projectId || '');
       if (identityMetadata.collaboratorEmails && (!getOptionalColumnIndex_(headerMap, baFoxOptionalTaskFieldNames_('COLLABORATOR_EMAILS')) || !getOptionalColumnIndex_(headerMap, baFoxOptionalTaskFieldNames_('COLLABORATOR_USER_IDS')))) {
         return baFoxError('TASK_IDENTITY_SCHEMA_INCOMPLETE', 'Collaborator columns are not available in Tasks.', {
           missingColumns: ['Collaborator Emails', 'Collaborator User IDs']
+        });
+      }
+      if (identityMetadata.projectId && !getOptionalColumnIndex_(headerMap, baFoxOptionalTaskFieldNames_('PROJECT_ID'))) {
+        return baFoxError('TASK_PROJECT_SCHEMA_INCOMPLETE', 'Project ID column is not available in Tasks.', {
+          missingColumns: ['Project ID']
         });
       }
     }
