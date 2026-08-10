@@ -21,14 +21,14 @@ Main spreadsheet: BA Fox Control Center
 | M | Итог / комментарий | Result or Lisa's notes |
 | N | Канал | ChatGPT, Telegram, Gmail, WhatsApp, etc. |
 | AI | Parent Task ID | ID родительской задачи. Пусто для верхнего уровня; позволяет неограниченную вложенность. |
-| AJ | Project ID | Связь с конкретным направлением, банком или иной подгруппой из листа Projects. |
+| AJ | Project ID | Связь с конкретным направлением или подгруппой из листа Projects. |
 
 ## Projects
 
 | Column | Name | Description |
 |---|---|---|
 | A-J | Existing project fields | ID, name, department, owner, status, description and audit fields. |
-| K | Parent Project ID | ID родительской группы. Пусто для верхнего уровня; позволяет дерево «направление → банк → задачи». |
+| K | Parent Project ID | ID родительской группы. Пусто для верхнего уровня; позволяет дерево «направление → подгруппа → задачи». |
 
 ## Daily Reports
 
