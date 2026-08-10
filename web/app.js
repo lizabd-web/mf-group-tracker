@@ -4,7 +4,8 @@ const viewLabels = Object.freeze({
   myTasks: ['Мои задачи', 'Личная очередь и совместная работа'],
   myFocus: ['Мой фокус', 'Личный фокус из командной операционной очереди'],
   team: ['Команда', 'Все активные задачи и нагрузка команды'],
-  departments: ['Проекты', 'Проекты команды и их статус'],
+  departments: ['Направления', 'Вход в направления, их подгруппы и задачи'],
+  projectDetails: ['Проект', 'Подгруппы и задачи направления'],
   dependencies: ['Риски', 'Просрочка, блокеры и ожидания'],
   reports: ['Отчёты', 'Дневные, недельные, отделовые и управленческие сводки'],
   settings: ['Профиль', 'Аккаунт и настройки интерфейса'],
@@ -707,6 +708,7 @@ const todaySectionLabels = Object.freeze({
 });
 
 let activeTab = 'dashboard';
+let openedProjectId = '';
 let activeTaskFilter = 'all';
 let activeCategoryFilter = 'all';
 let activeOwnerFilter = 'all';
@@ -3763,37 +3765,52 @@ function findDashboardProject(projectId) {
 function renderMfDepartments() {
   const profile = identityDisplayProfile();
   const canManageProjects = Boolean(profile.permissions && profile.permissions.canManageProjects);
-  const renderProject = function (project, ancestors) {
-    if (ancestors.includes(project.id)) return '';
+  const projects = dashboardProjects().filter(function (project) { return !project.parentProjectId; }).map(function (project) {
     const archived = project.status === 'Archived';
     const projectTasks = activeTasks().filter(function (task) { return task.projectId === project.id; });
     const overdueProjectTasks = projectTasks.filter(isOverdueTask);
-    const actions = canManageProjects
-      ? [
-        '<div class="mf-action-row">',
-        '<button class="secondary-button" type="button" data-project-action="edit" data-project-id="' + escapeHtml(project.id) + '">Изменить</button>',
-        archived
-          ? '<button class="secondary-button" type="button" data-project-action="restore" data-project-id="' + escapeHtml(project.id) + '">Восстановить</button>'
-          : '<button class="secondary-button danger-button" type="button" data-project-action="archive" data-project-id="' + escapeHtml(project.id) + '">В архив</button>',
-        '</div>',
-      ].join('')
-      : '';
     const children = dashboardProjects().filter(function (item) { return item.parentProjectId === project.id; });
-    const childrenHtml = children.length ? '<div class="project-subgroups">' + children.map(function (child) { return renderProject(child, ancestors.concat(project.id)); }).join('') + '</div>' : '';
-    const subgroupButton = canManageProjects && !archived ? '<button class="secondary-button" type="button" data-project-action="create-child" data-project-id="' + escapeHtml(project.id) + '">Добавить подгруппу</button>' : '';
-    return '<article class="mf-department-card project-tree-card' + (archived ? ' archived-project' : '') + '"><div class="mf-task-head"><div><span class="mf-id">' + escapeHtml(project.id) + '</span><h3>' + escapeHtml(project.name) + '</h3></div>' + mfPill(projectStatusLabel(project.status), project.status === 'Active' ? 'green' : 'neutral') + '</div><p>' + escapeHtml(project.description || 'Без описания') + '</p><div class="mf-task-meta"><span>Отдел: <strong>' + escapeHtml(project.department) + '</strong></span><span>Ответственный: <strong>' + escapeHtml(project.ownerEmail || 'Не назначен') + '</strong></span><span>Активные задачи: <strong>' + projectTasks.length + '</strong></span><span>Просрочено: <strong>' + overdueProjectTasks.length + '</strong></span></div>' + (safeWritesEnabled() && !archived ? '<div class="mf-action-row"><button class="secondary-button" type="button" data-create-project-task="' + escapeHtml(project.id) + '">Добавить задачу в проект</button>' + subgroupButton + '</div>' : '') + projectTaskTreeHtml(projectTasks) + actions + childrenHtml + '</article>';
-  };
-  const projects = dashboardProjects().filter(function (project) { return !project.parentProjectId; }).map(function (project) {
-    return renderProject(project, []);
+    return '<article class="mf-department-card project-directory-card' + (archived ? ' archived-project' : '') + '"><div class="mf-task-head"><div><span class="mf-id">' + escapeHtml(project.id) + '</span><h3>' + escapeHtml(project.name) + '</h3></div>' + mfPill(projectStatusLabel(project.status), project.status === 'Active' ? 'green' : 'neutral') + '</div><p>' + escapeHtml(project.description || 'Без описания') + '</p><div class="mf-task-meta"><span>Отдел: <strong>' + escapeHtml(project.department) + '</strong></span><span>Подгруппы: <strong>' + children.length + '</strong></span><span>Активные задачи: <strong>' + projectTasks.length + '</strong></span><span>Просрочено: <strong>' + overdueProjectTasks.length + '</strong></span></div><div class="mf-action-row"><button class="primary-button" type="button" data-open-project="' + escapeHtml(project.id) + '">Открыть направление</button></div></article>';
   }).join('');
   const addButton = canManageProjects
-    ? '<div class="mf-action-row"><button class="primary-button" type="button" data-project-action="create">Добавить проект</button></div>'
+    ? '<div class="mf-action-row"><button class="primary-button" type="button" data-project-action="create">Добавить направление</button></div>'
     : '';
   elements.taskList.innerHTML = [
     addButton,
-    '<section><div class="mf-section-title"><h3>Проекты</h3><span>' + dashboardProjects().length + '</span></div>',
-    projects ? '<div class="mf-card-grid departments">' + projects + '</div>' : '<article class="empty-state"><strong>Проектов пока нет</strong><span>Начните с первого рабочего проекта.</span></article>',
+    '<section><div class="mf-section-title"><h3>Направления</h3><span>' + dashboardProjects().filter(function (project) { return !project.parentProjectId; }).length + '</span></div>',
+    projects ? '<div class="mf-card-grid departments">' + projects + '</div>' : '<article class="empty-state"><strong>Направлений пока нет</strong><span>Создайте первое рабочее направление.</span></article>',
     '</section>',
+  ].join('');
+}
+
+function renderMfProjectDetails() {
+  const project = findDashboardProject(openedProjectId);
+  if (!project) {
+    openedProjectId = '';
+    activeTab = 'departments';
+    renderMfDepartments();
+    return;
+  }
+  const profile = identityDisplayProfile();
+  const canManageProjects = Boolean(profile.permissions && profile.permissions.canManageProjects);
+  const archived = project.status === 'Archived';
+  const projectTasks = activeTasks().filter(function (task) { return task.projectId === project.id; });
+  const children = dashboardProjects().filter(function (item) { return item.parentProjectId === project.id; });
+  const childCards = children.map(function (child) {
+    const childTasks = activeTasks().filter(function (task) { return task.projectId === child.id; });
+    return '<article class="mf-department-card project-directory-card' + (child.status === 'Archived' ? ' archived-project' : '') + '"><div class="mf-task-head"><div><span class="mf-id">' + escapeHtml(child.id) + '</span><h3>' + escapeHtml(child.name) + '</h3></div>' + mfPill(projectStatusLabel(child.status), child.status === 'Active' ? 'green' : 'neutral') + '</div><p>' + escapeHtml(child.description || 'Без описания') + '</p><div class="mf-task-meta"><span>Активные задачи: <strong>' + childTasks.length + '</strong></span><span>Подгруппы: <strong>' + dashboardProjects().filter(function (item) { return item.parentProjectId === child.id; }).length + '</strong></span></div><div class="mf-action-row"><button class="secondary-button" type="button" data-open-project="' + escapeHtml(child.id) + '">Открыть подгруппу</button>' + (safeWritesEnabled() && child.status !== 'Archived' ? '<button class="secondary-button" type="button" data-create-project-task="' + escapeHtml(child.id) + '">Добавить задачу</button>' : '') + '</div></article>';
+  }).join('');
+  const manageActions = canManageProjects
+    ? '<div class="mf-action-row"><button class="secondary-button" type="button" data-project-action="edit" data-project-id="' + escapeHtml(project.id) + '">Изменить</button>' + (archived ? '<button class="secondary-button" type="button" data-project-action="restore" data-project-id="' + escapeHtml(project.id) + '">Восстановить</button>' : '<button class="secondary-button danger-button" type="button" data-project-action="archive" data-project-id="' + escapeHtml(project.id) + '">В архив</button>') + '</div>'
+    : '';
+  const createActions = safeWritesEnabled() && !archived
+    ? '<div class="mf-action-row"><button class="primary-button" type="button" data-project-action="create-child" data-project-id="' + escapeHtml(project.id) + '">Добавить подгруппу</button><button class="secondary-button" type="button" data-create-project-task="' + escapeHtml(project.id) + '">Добавить задачу в направление</button></div>'
+    : '';
+  elements.taskList.innerHTML = [
+    '<div class="mf-action-row"><button class="secondary-button" type="button" data-project-navigation="back">← Все направления</button></div>',
+    '<section class="project-details-page"><div class="mf-section-title"><div><span class="mf-id">' + escapeHtml(project.id) + '</span><h3>' + escapeHtml(project.name) + '</h3></div>' + mfPill(projectStatusLabel(project.status), project.status === 'Active' ? 'green' : 'neutral') + '</div><p>' + escapeHtml(project.description || 'Без описания') + '</p><div class="mf-task-meta"><span>Отдел: <strong>' + escapeHtml(project.department) + '</strong></span><span>Ответственный: <strong>' + escapeHtml(project.ownerEmail || 'Не назначен') + '</strong></span></div>' + createActions + manageActions + '</section>',
+    '<section><div class="mf-section-title"><h3>Подгруппы</h3><span>' + children.length + '</span></div>' + (childCards ? '<div class="mf-card-grid departments">' + childCards + '</div>' : '<article class="empty-state"><strong>Подгрупп пока нет</strong><span>Создайте первую подгруппу внутри этого направления.</span></article>') + '</section>',
+    '<section><div class="mf-section-title"><h3>Задачи направления</h3><span>' + projectTasks.length + '</span></div>' + projectTaskTreeHtml(projectTasks) + '</section>',
   ].join('');
 }
 
@@ -4316,6 +4333,10 @@ function renderMfSection() {
     renderMfDepartments();
     return true;
   }
+  if (activeTab === 'projectDetails') {
+    renderMfProjectDetails();
+    return true;
+  }
   if (activeTab === 'dependencies') {
     renderMfDependencies();
     return true;
@@ -4662,7 +4683,7 @@ async function handleProjectAction(action, projectId) {
     }
     const successMessage = flashMessage;
     await loadDashboard({ forceRefresh: true });
-    activeTab = 'departments';
+    if (activeTab !== 'projectDetails') activeTab = 'departments';
     flashMessage = successMessage;
     render();
   } catch (error) {
@@ -5428,6 +5449,20 @@ elements.workspaceControls.addEventListener('click', function (event) {
 });
 
 elements.taskList.addEventListener('click', function (event) {
+  const openProjectButton = event.target.closest('[data-open-project]');
+  if (openProjectButton) {
+    openedProjectId = openProjectButton.dataset.openProject || '';
+    activeTab = 'projectDetails';
+    renderPanel();
+    return;
+  }
+  const projectNavigationButton = event.target.closest('[data-project-navigation]');
+  if (projectNavigationButton && projectNavigationButton.dataset.projectNavigation === 'back') {
+    openedProjectId = '';
+    activeTab = 'departments';
+    renderPanel();
+    return;
+  }
   const createProjectTaskButton = event.target.closest('[data-create-project-task]');
   if (createProjectTaskButton) {
     openCreateTaskModal({ projectId: createProjectTaskButton.dataset.createProjectTask || '' });
