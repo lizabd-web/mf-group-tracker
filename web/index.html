@@ -44,7 +44,7 @@
           <button class="tab" type="button" data-tab="myTasks" aria-selected="false">Мои задачи</button>
           <button class="tab" type="button" data-tab="team" aria-selected="false">Команда</button>
           <button class="tab" type="button" data-tab="departments" data-roles="admin executive" aria-selected="false">Проекты</button>
-          <button class="tab" type="button" data-tab="funnel" data-roles="admin executive" aria-selected="false">Воронка BizDev</button>
+          <button class="tab" type="button" data-tab="funnel" data-roles="admin executive" aria-selected="false">Воронка</button>
           <button class="tab" type="button" data-tab="settings" aria-selected="false">Профиль</button>
           <button class="tab" type="button" data-tab="admin" data-roles="admin" aria-selected="false">Администрирование</button>
         </nav>
@@ -289,6 +289,34 @@
         <label class="form-field form-field-wide"><span>Описание</span><textarea name="description" rows="4" placeholder="Краткий контекст и цель"></textarea></label>
         <div class="modal-message" id="editProjectMessage" role="status"></div>
         <div class="modal-actions"><button class="secondary-button" type="button" id="closeEditProject">Отмена</button><button class="primary-button" type="submit" id="submitEditProject">Сохранить</button></div>
+      </form>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="editDealModal" hidden>
+    <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="editDealTitle">
+      <form id="editDealForm" novalidate>
+        <div class="modal-header"><div><p class="eyebrow">Воронка · BizDev</p><h2 id="editDealTitle">Карточка партнёра</h2></div><button class="modal-close" type="button" id="closeEditDealTop" aria-label="Закрыть">×</button></div>
+        <input type="hidden" name="dealId" />
+        <div class="form-grid">
+          <label class="form-field form-field-wide"><span>Партнёр / проект</span><input name="partner" required autocomplete="off" /></label>
+          <label class="form-field"><span>Направление</span><input name="direction" value="BizDev" required /></label>
+          <label class="form-field"><span>GEO</span><input name="geo" autocomplete="off" /></label>
+          <label class="form-field"><span>Продукт</span><input name="product" autocomplete="off" /></label>
+          <label class="form-field"><span>Стадия</span><select name="stage" id="dealStageSelect" required></select></label>
+          <label class="form-field"><span>Ожидание</span><select name="waitingStatus" id="dealWaitingSelect" required></select></label>
+          <label class="form-field"><span>Приоритет</span><select name="priority"><option value="High">Высокий</option><option value="Medium">Средний</option><option value="Low">Низкий</option></select></label>
+          <label class="form-field"><span>Ответственный</span><select name="ownerEmail" id="dealOwnerSelect"><option value="">Не назначен</option></select></label>
+          <label class="form-field"><span>Соисполнитель</span><select name="coOwnerEmail" id="dealCoOwnerSelect"><option value="">Не назначен</option></select></label>
+          <label class="form-field form-field-wide"><span>Следующий шаг</span><textarea name="nextStep" rows="3" required></textarea></label>
+          <label class="form-field"><span>Дата follow-up</span><input type="date" name="followUpDate" /></label>
+          <label class="form-field"><span>Последний контакт</span><input type="date" name="lastContact" /></label>
+          <label class="form-field form-field-wide"><span>Блокер</span><textarea name="blocker" rows="2"></textarea></label>
+          <label class="form-field form-field-wide"><span>Ждём от партнёра</span><textarea name="waitingForPartner" rows="2"></textarea></label>
+          <label class="form-field form-field-wide"><span>Что должны сделать мы</span><textarea name="waitingForUs" rows="2"></textarea></label>
+        </div>
+        <div class="modal-message" id="editDealMessage" role="status"></div>
+        <div class="modal-actions"><button class="secondary-button" type="button" id="closeEditDeal">Отмена</button><button class="primary-button" type="submit" id="submitEditDeal">Сохранить карточку</button></div>
       </form>
     </section>
   </div>
