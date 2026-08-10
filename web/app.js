@@ -3726,7 +3726,8 @@ function findDashboardProject(projectId) {
 function renderMfDepartments() {
   const profile = identityDisplayProfile();
   const canManageProjects = Boolean(profile.permissions && profile.permissions.canManageProjects);
-  const projects = dashboardProjects().map(function (project) {
+  const renderProject = function (project, ancestors) {
+    if (ancestors.includes(project.id)) return '';
     const archived = project.status === 'Archived';
     const projectTasks = activeTasks().filter(function (task) { return task.projectId === project.id; });
     const overdueProjectTasks = projectTasks.filter(isOverdueTask);
@@ -3740,7 +3741,13 @@ function renderMfDepartments() {
         '</div>',
       ].join('')
       : '';
-    return '<article class="mf-department-card project-tree-card' + (archived ? ' archived-project' : '') + '"><div class="mf-task-head"><div><span class="mf-id">' + escapeHtml(project.id) + '</span><h3>' + escapeHtml(project.name) + '</h3></div>' + mfPill(projectStatusLabel(project.status), project.status === 'Active' ? 'green' : 'neutral') + '</div><p>' + escapeHtml(project.description || 'Без описания') + '</p><div class="mf-task-meta"><span>Отдел: <strong>' + escapeHtml(project.department) + '</strong></span><span>Ответственный: <strong>' + escapeHtml(project.ownerEmail || 'Не назначен') + '</strong></span><span>Активные задачи: <strong>' + projectTasks.length + '</strong></span><span>Просрочено: <strong>' + overdueProjectTasks.length + '</strong></span></div>' + (safeWritesEnabled() && !archived ? '<div class="mf-action-row"><button class="secondary-button" type="button" data-create-project-task="' + escapeHtml(project.id) + '">Добавить задачу в проект</button></div>' : '') + projectTaskTreeHtml(projectTasks) + actions + '</article>';
+    const children = dashboardProjects().filter(function (item) { return item.parentProjectId === project.id; });
+    const childrenHtml = children.length ? '<div class="project-subgroups">' + children.map(function (child) { return renderProject(child, ancestors.concat(project.id)); }).join('') + '</div>' : '';
+    const subgroupButton = canManageProjects && !archived ? '<button class="secondary-button" type="button" data-project-action="create-child" data-project-id="' + escapeHtml(project.id) + '">Добавить банк / подгруппу</button>' : '';
+    return '<article class="mf-department-card project-tree-card' + (archived ? ' archived-project' : '') + '"><div class="mf-task-head"><div><span class="mf-id">' + escapeHtml(project.id) + '</span><h3>' + escapeHtml(project.name) + '</h3></div>' + mfPill(projectStatusLabel(project.status), project.status === 'Active' ? 'green' : 'neutral') + '</div><p>' + escapeHtml(project.description || 'Без описания') + '</p><div class="mf-task-meta"><span>Отдел: <strong>' + escapeHtml(project.department) + '</strong></span><span>Ответственный: <strong>' + escapeHtml(project.ownerEmail || 'Не назначен') + '</strong></span><span>Активные задачи: <strong>' + projectTasks.length + '</strong></span><span>Просрочено: <strong>' + overdueProjectTasks.length + '</strong></span></div>' + (safeWritesEnabled() && !archived ? '<div class="mf-action-row"><button class="secondary-button" type="button" data-create-project-task="' + escapeHtml(project.id) + '">Добавить задачу в проект</button>' + subgroupButton + '</div>' : '') + projectTaskTreeHtml(projectTasks) + actions + childrenHtml + '</article>';
+  };
+  const projects = dashboardProjects().filter(function (project) { return !project.parentProjectId; }).map(function (project) {
+    return renderProject(project, []);
   }).join('');
   const addButton = canManageProjects
     ? '<div class="mf-action-row"><button class="primary-button" type="button" data-project-action="create">Добавить проект</button></div>'
@@ -4537,12 +4544,13 @@ function openCreateTaskModal(context) {
 async function handleProjectAction(action, projectId) {
   const departments = dashboardDepartments();
   try {
-    if (action === 'create') {
-      const name = window.prompt('Название проекта');
+    if (action === 'create' || action === 'create-child') {
+      const parentProject = action === 'create-child' ? findDashboardProject(projectId) : null;
+      const name = window.prompt(parentProject ? 'Название банка / подгруппы' : 'Название направления');
       if (!name) return;
       const department = window.prompt(
         'Отдел проекта' + (departments.length ? '\nДоступны: ' + departments.join(', ') : ''),
-        departments[0] || ''
+        parentProject ? parentProject.department : (departments[0] || '')
       );
       if (!department) return;
       const description = window.prompt('Краткое описание проекта (необязательно)', '');
@@ -4553,6 +4561,7 @@ async function handleProjectAction(action, projectId) {
         name: name.trim(),
         department: department.trim(),
         description: description.trim(),
+        parentProjectId: parentProject ? parentProject.id : '',
       }, identityRequestParams()));
       flashMessage = 'Проект добавлен.';
     } else {

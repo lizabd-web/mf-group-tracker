@@ -44,7 +44,8 @@ var BA_FOX_CONFIG = {
     DESCRIPTION: 7,
     CREATED_AT: 8,
     CREATED_BY_EMAIL: 9,
-    UPDATED_AT: 10
+    UPDATED_AT: 10,
+    PARENT_PROJECT_ID: 11
   },
   PROJECT_STATUSES: ['Active', 'Paused', 'Completed', 'Archived'],
   TASK_COLUMNS: {
