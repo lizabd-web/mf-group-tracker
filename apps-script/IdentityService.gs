@@ -47,14 +47,15 @@ function identityVisibilityMode_() {
 }
 
 function backendIdentityEnforced_(identityMode) {
-  return identityEnforcementMode_() === 'enforced' && identityMode === 'google_token_verified';
+  return identityEnforcementMode_() === 'enforced'
+    && ['google_token_verified', 'trusted_device_session'].indexOf(identityMode) !== -1;
 }
 
 function backendIdentityEnforcementStatus_(identityMode) {
   if (backendIdentityEnforced_(identityMode)) {
     return 'enforced';
   }
-  if (identityMode === 'google_token_verified') {
+  if (['google_token_verified', 'trusted_device_session'].indexOf(identityMode) !== -1) {
     return 'partial';
   }
   return identityEnforcementMode_() === 'enforced' ? 'enforced_requires_token' : 'partial';
@@ -82,6 +83,60 @@ function requestIdentityToken_(request) {
     || normalized.credential
     || normalized.googleCredential
   );
+}
+
+function requestTrustedDeviceSession_(request) {
+  var normalized = baFoxNormalizeRequest(request);
+  return baFoxSafeString(normalized.trustedDeviceSession);
+}
+
+function trustedDeviceSessionPropertyKey_(session) {
+  var digest = identityTokenCacheKey_(session);
+  return digest ? 'baFoxTrustedDevice:' + digest.slice('baFoxIdentity:'.length) : '';
+}
+
+function trustedDeviceSessionTtlMs_() {
+  return 30 * 24 * 60 * 60 * 1000;
+}
+
+function verifyTrustedDeviceSession_(session) {
+  var rawSession = baFoxSafeString(session);
+  var propertyKey = trustedDeviceSessionPropertyKey_(rawSession);
+  if (!rawSession || !propertyKey || typeof PropertiesService === 'undefined') {
+    return { ok: false, error: 'TRUSTED_DEVICE_SESSION_MISSING' };
+  }
+  try {
+    var properties = PropertiesService.getScriptProperties();
+    var stored = properties.getProperty(propertyKey);
+    if (!stored) return { ok: false, error: 'TRUSTED_DEVICE_SESSION_NOT_FOUND' };
+    var record = JSON.parse(stored);
+    if (!record.expiresAt || Number(record.expiresAt) <= new Date().getTime() || !isAllowedWorkspaceEmail_(record.email)) {
+      properties.deleteProperty(propertyKey);
+      return { ok: false, error: 'TRUSTED_DEVICE_SESSION_EXPIRED' };
+    }
+    return { ok: true, email: normalizeWorkspaceEmail_(record.email), expiresAt: Number(record.expiresAt) };
+  } catch (error) {
+    return { ok: false, error: 'TRUSTED_DEVICE_SESSION_INVALID' };
+  }
+}
+
+function issueTrustedDeviceSession_(email, existingSession) {
+  var existing = verifyTrustedDeviceSession_(existingSession);
+  var normalizedEmail = normalizeWorkspaceEmail_(email);
+  if (existing.ok && existing.email === normalizedEmail) return baFoxSafeString(existingSession);
+  if (!normalizedEmail || typeof PropertiesService === 'undefined' || typeof Utilities === 'undefined') return '';
+  var session = Utilities.getUuid() + Utilities.getUuid();
+  var propertyKey = trustedDeviceSessionPropertyKey_(session);
+  if (!propertyKey) return '';
+  try {
+    PropertiesService.getScriptProperties().setProperty(propertyKey, JSON.stringify({
+      email: normalizedEmail,
+      expiresAt: new Date().getTime() + trustedDeviceSessionTtlMs_()
+    }));
+    return session;
+  } catch (error) {
+    return '';
+  }
 }
 
 function identityTokenCacheKey_(token) {
@@ -414,6 +469,25 @@ function getIdentityFromRequest_(request) {
     };
   }
 
+  var trustedDeviceSession = requestTrustedDeviceSession_(request);
+  if (trustedDeviceSession) {
+    var trustedSessionResult = verifyTrustedDeviceSession_(trustedDeviceSession);
+    if (trustedSessionResult.ok) {
+      return {
+        source: 'trusted_device_session',
+        identityMode: 'trusted_device_session',
+        email: trustedSessionResult.email,
+        tokenVerification: {
+          ok: true,
+          mode: 'trusted_device_session',
+          error: '',
+          message: '',
+          expiresAt: trustedSessionResult.expiresAt
+        }
+      };
+    }
+  }
+
   var activeEmail = activeUserEmail_();
   return {
     source: activeEmail ? 'apps_script_active_user' : 'none',
@@ -492,7 +566,8 @@ function safeUserSummary_(user) {
 
 function getSafeActiveUsersForPreview_(request) {
   var identity = getCurrentUserProfile_(request || {}, {});
-  if (identity.identityMode !== 'google_token_verified' || !profileCanManageUsers_(identity.profile)) {
+  if (['google_token_verified', 'trusted_device_session'].indexOf(identity.identityMode) === -1
+      || !profileCanManageUsers_(identity.profile)) {
     return baFoxError('ADMIN_REQUIRED', 'Admin profile is required for active user preview list.', {
       identityMode: identity.identityMode
     });
@@ -545,7 +620,9 @@ function getCurrentUserProfile_(request, context) {
     return request.__verifiedIdentityResult;
   }
   var identity = getIdentityFromRequest_(request || {});
-  if (settings.requireGoogleToken === true && identity.identityMode !== 'google_token_verified') {
+  if (settings.requireGoogleToken === true
+      && identity.identityMode !== 'google_token_verified'
+      && identity.identityMode !== 'trusted_device_session') {
     identity = {
       source: 'none',
       identityMode: identity.identityMode === 'google_token_invalid' ? 'google_token_invalid' : 'missing_token',
@@ -669,8 +746,8 @@ function getCurrentUserProfile_(request, context) {
   }
 
   var permissions = profilePermissions_(user);
-  var identityMode = identity.identityMode === 'google_token_verified'
-    ? 'google_token_verified'
+  var identityMode = ['google_token_verified', 'trusted_device_session'].indexOf(identity.identityMode) !== -1
+    ? identity.identityMode
     : 'active_user_email_registered';
   return {
     identityMode: identityMode,
@@ -695,9 +772,17 @@ function getCurrentUserProfile_(request, context) {
 }
 
 function baFoxGetProfile(request) {
-  return baFoxOk(getCurrentUserProfile_(request || {}, {
+  var normalized = request || {};
+  var result = getCurrentUserProfile_(normalized, {
     requireGoogleToken: true
-  }));
+  });
+  if (result.identityMode === 'google_token_verified'
+      && result.profile
+      && result.profile.isRegistered
+      && result.profile.status === 'active') {
+    result.trustedDeviceSession = issueTrustedDeviceSession_(result.profile.email, requestTrustedDeviceSession_(normalized));
+  }
+  return baFoxOk(result);
 }
 
 function getVerifiedUserProfile_(request) {
@@ -726,7 +811,7 @@ function requireVerifiedProfile_(request, options) {
       profile: profile
     };
   }
-  if (result.identityMode !== 'google_token_verified') {
+  if (['google_token_verified', 'trusted_device_session'].indexOf(result.identityMode) === -1) {
     return {
       ok: false,
       enforced: true,
@@ -770,7 +855,7 @@ function requireVerifiedProfile_(request, options) {
 function requireAuthorizedSafeWrite_(request) {
   var result = getVerifiedUserProfile_(request || {});
   var profile = result.profile || getFallbackUserProfile_();
-  var hasVerifiedGoogleProfile = result.identityMode === 'google_token_verified'
+  var hasVerifiedGoogleProfile = ['google_token_verified', 'trusted_device_session'].indexOf(result.identityMode) !== -1
     && profile.isAuthenticated === true
     && profile.isRegistered === true
     && profile.status === 'active';
@@ -778,7 +863,7 @@ function requireAuthorizedSafeWrite_(request) {
   if (hasVerifiedGoogleProfile && profileCanWrite_(profile)) {
     return {
       ok: true,
-      authorizationMode: 'google_profile',
+      authorizationMode: result.identityMode === 'trusted_device_session' ? 'trusted_device_session' : 'google_profile',
       identity: result,
       profile: profile
     };
@@ -1020,7 +1105,8 @@ function baFoxGetVisibilityPreview(request) {
   var profile = identity.profile || getFallbackUserProfile_();
   var previewedByAdmin = false;
   if (baFoxSafeString(normalized.previewUserId || normalized.userId || normalized.email)) {
-    if (identity.identityMode !== 'google_token_verified' || !profileCanManageUsers_(profile)) {
+    if (['google_token_verified', 'trusted_device_session'].indexOf(identity.identityMode) === -1
+        || !profileCanManageUsers_(profile)) {
       return baFoxError('ADMIN_REQUIRED', 'Admin profile is required for impersonated visibility preview.', {
         identityMode: identity.identityMode
       });
