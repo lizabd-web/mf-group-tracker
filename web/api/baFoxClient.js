@@ -25,6 +25,9 @@
     'createProject',
     'updateProject',
     'prepareTaskIdentityColumns',
+    'prepareDealsSheet',
+    'createDeal',
+    'updateDeal',
   ]);
   const TASK_ACTION_MESSAGES = Object.freeze({
     ACTION_NOT_ALLOWED: 'Это действие пока не включено для MF Group Tracker.',
@@ -76,7 +79,7 @@
     VALIDATION_ERROR: 'Проверьте название, отдел, ответственного и статус проекта.',
   });
   const JSONP_TIMEOUT_MS = 25000;
-  const RATE_LIMIT_MESSAGE = 'Google Sheets временно ограничил чтение. EA FOX повторит попытку позже.';
+  const RATE_LIMIT_MESSAGE = 'Google Sheets временно ограничил чтение. MF Group Tracker повторит попытку позже.';
   const TIMEOUT_MESSAGE = 'Google Sheets отвечает дольше обычного. Попробуйте обновить данные ещё раз.';
   const AUTH_ERROR_CODES = Object.freeze([
     'GOOGLE_TOKEN_REQUIRED',
