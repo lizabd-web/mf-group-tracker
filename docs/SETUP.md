@@ -13,8 +13,8 @@
 ## 2. Local setup
 
 ```bash
-git clone https://github.com/79kqtc2xbf-jpg/ba-fox-control-center.git
-cd ba-fox-control-center
+git clone https://github.com/lizabd-web/mf-group-tracker.git
+cd mf-group-tracker
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt

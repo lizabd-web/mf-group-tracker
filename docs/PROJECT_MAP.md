@@ -37,7 +37,7 @@ Main sources:
 
 ```text
 Google Sheet: BA Fox Control Center / Tasks
-GitHub repo: 79kqtc2xbf-jpg/ba-fox-control-center
+GitHub repo: lizabd-web/mf-group-tracker
 GitHub issue #1: operational stage tracking
 ```
 

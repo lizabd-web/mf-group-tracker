@@ -4276,7 +4276,7 @@ function renderMfSettings() {
     '<div class="mf-section-title"><h3>Product ownership</h3><span>intentional metadata</span></div>',
     '<div class="mf-readonly-grid product-owner-grid">',
     '<span>Product owner <strong>Liza Kiseleva</strong></span>',
-    '<span>Product <strong>MF Group Tracker / BA Fox Control Center</strong></span>',
+    '<span>Продукт <strong>MF Group Tracker</strong></span>',
     '<span>Role <strong>Product concept, workflow architecture, QA ownership</strong></span>',
     '<span>Attribution <strong>Made by Liza Kiseleva</strong></span>',
     '</div>',

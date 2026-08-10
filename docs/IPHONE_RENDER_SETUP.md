@@ -21,7 +21,7 @@ This path avoids local terminal setup.
 Recommended option: use `render.yaml` blueprint from this repo.
 
 1. In Render dashboard, create a new Blueprint / service from GitHub.
-2. Choose repository: `79kqtc2xbf-jpg/ba-fox-control-center`.
+2. Choose repository: `lizabd-web/mf-group-tracker`.
 3. Render will detect `render.yaml`.
 4. Confirm service creation.
 

@@ -94,7 +94,7 @@ BA Fox Web Dashboard
 Add the GitHub Pages origin used by the dashboard, for example:
 
 ```text
-https://79kqtc2xbf-jpg.github.io
+https://lizabd-web.github.io/mf-group-tracker/
 ```
 
 For local/dev testing, add only if needed:
