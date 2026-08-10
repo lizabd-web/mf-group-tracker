@@ -14,7 +14,8 @@ function baFoxNormalizeProjectRow_(row) {
     description: baFoxSafeString(row[BA_FOX_CONFIG.PROJECT_COLUMNS.DESCRIPTION - 1]),
     createdAt: baFoxSafeString(row[BA_FOX_CONFIG.PROJECT_COLUMNS.CREATED_AT - 1]),
     createdByEmail: normalizeWorkspaceEmail_(row[BA_FOX_CONFIG.PROJECT_COLUMNS.CREATED_BY_EMAIL - 1]),
-    updatedAt: baFoxSafeString(row[BA_FOX_CONFIG.PROJECT_COLUMNS.UPDATED_AT - 1])
+    updatedAt: baFoxSafeString(row[BA_FOX_CONFIG.PROJECT_COLUMNS.UPDATED_AT - 1]),
+    parentProjectId: baFoxSafeString(row[BA_FOX_CONFIG.PROJECT_COLUMNS.PARENT_PROJECT_ID - 1])
   };
 }
 
@@ -23,7 +24,7 @@ function baFoxListProjects_() {
   if (!sheet || sheet.getLastRow() < 2) {
     return [];
   }
-  return sheet.getRange(2, 1, sheet.getLastRow() - 1, 10).getValues()
+  return sheet.getRange(2, 1, sheet.getLastRow() - 1, sheet.getLastColumn()).getValues()
     .map(baFoxNormalizeProjectRow_)
     .filter(function(project) {
       return Boolean(project.id || project.name);
@@ -40,6 +41,7 @@ function baFoxCreateProject_(request) {
   var name = baFoxSafeString(normalized.name);
   var department = baFoxSafeString(normalized.department);
   var description = baFoxSafeString(normalized.description);
+  var parentProjectId = baFoxSafeString(normalized.parentProjectId);
   if (!name || !department) {
     return baFoxError('VALIDATION_ERROR', 'Project name and department are required.', {});
   }
@@ -66,6 +68,17 @@ function baFoxCreateProject_(request) {
   if (!sheet) {
     return baFoxError('PROJECTS_SHEET_MISSING', 'Projects sheet is not available.', {});
   }
+  if (parentProjectId) {
+    var parentMatch = baFoxFindProjectRow_(parentProjectId);
+    if (!parentMatch.ok) return parentMatch.error;
+    var parentProject = baFoxNormalizeProjectRow_(parentMatch.row);
+    if (parentProject.status === 'Archived') {
+      return baFoxError('PARENT_PROJECT_ARCHIVED', 'A subgroup cannot be added to an archived project.', { parentProjectId: parentProjectId });
+    }
+    if (parentProject.department && parentProject.department !== department) {
+      return baFoxError('PARENT_PROJECT_DEPARTMENT_MISMATCH', 'A subgroup must stay in the same department as its parent.', { parentProjectId: parentProjectId });
+    }
+  }
   var now = baFoxNow();
   var timestamp = baFoxIsoNow();
   var ownerEmail = normalizeWorkspaceEmail_(normalized.ownerEmail);
@@ -80,7 +93,8 @@ function baFoxCreateProject_(request) {
     description: description,
     createdAt: timestamp,
     createdByEmail: authorization.profile.email,
-    updatedAt: timestamp
+    updatedAt: timestamp,
+    parentProjectId: parentProjectId
   };
   sheet.appendRow([
     project.id,
@@ -92,7 +106,8 @@ function baFoxCreateProject_(request) {
     project.description,
     project.createdAt,
     project.createdByEmail,
-    project.updatedAt
+    project.updatedAt,
+    project.parentProjectId
   ]);
   return baFoxOk({ project: project });
 }
@@ -107,6 +122,7 @@ function baFoxProjectAllowedKeys_() {
     'credential',
     'googleCredential',
     'projectId',
+    'parentProjectId',
     'name',
     'department',
     'ownerEmail',
@@ -156,6 +172,22 @@ function baFoxFindProjectRow_(projectId) {
   };
 }
 
+function baFoxWouldCreateProjectCycle_(projectId, parentProjectId) {
+  var projects = baFoxListProjects_();
+  var parentsById = {};
+  projects.forEach(function(project) {
+    parentsById[project.id] = project.parentProjectId;
+  });
+  var cursor = parentProjectId;
+  var visited = {};
+  while (cursor) {
+    if (cursor === projectId || visited[cursor]) return true;
+    visited[cursor] = true;
+    cursor = parentsById[cursor] || '';
+  }
+  return false;
+}
+
 function baFoxUpdateProject_(request) {
   var normalized = baFoxNormalizeRequest(request || {});
   var rejectedKeys = Object.keys(normalized).filter(function(key) {
@@ -197,7 +229,8 @@ function baFoxUpdateProject_(request) {
       ? normalizeWorkspaceEmail_(normalized.ownerEmail)
       : previous.ownerEmail,
     status: Object.prototype.hasOwnProperty.call(normalized, 'status') ? baFoxSafeString(normalized.status) : previous.status,
-    description: Object.prototype.hasOwnProperty.call(normalized, 'description') ? baFoxSafeString(normalized.description) : previous.description
+    description: Object.prototype.hasOwnProperty.call(normalized, 'description') ? baFoxSafeString(normalized.description) : previous.description,
+    parentProjectId: Object.prototype.hasOwnProperty.call(normalized, 'parentProjectId') ? baFoxSafeString(normalized.parentProjectId) : previous.parentProjectId
   };
   if (!next.name || !next.department) {
     return baFoxError('VALIDATION_ERROR', 'Project name and department are required.', {});
@@ -207,6 +240,18 @@ function baFoxUpdateProject_(request) {
   }
   if ([next.name, next.department, next.ownerEmail, next.description].some(baFoxLooksLikeFormula_)) {
     return baFoxError('VALIDATION_ERROR', 'Formula-like values are not allowed.', {});
+  }
+  if (next.parentProjectId) {
+    if (next.parentProjectId === previous.id) return baFoxError('PROJECT_PARENT_CYCLE', 'A project cannot be its own parent.', {});
+    if (baFoxWouldCreateProjectCycle_(previous.id, next.parentProjectId)) {
+      return baFoxError('PROJECT_PARENT_CYCLE', 'A project cannot be moved into its own subgroup.', {});
+    }
+    var parent = baFoxFindProjectRow_(next.parentProjectId);
+    if (!parent.ok) return parent.error;
+    var parentProject = baFoxNormalizeProjectRow_(parent.row);
+    if (parentProject.status === 'Archived' || parentProject.department !== next.department) {
+      return baFoxError('INVALID_PARENT_PROJECT', 'Parent project must be active and in the same department.', { parentProjectId: next.parentProjectId });
+    }
   }
 
   var owner = next.ownerEmail ? findUserByEmail_(next.ownerEmail) : null;
@@ -221,7 +266,8 @@ function baFoxUpdateProject_(request) {
     description: next.description,
     createdAt: previous.createdAt,
     createdByEmail: previous.createdByEmail,
-    updatedAt: updatedAt
+    updatedAt: updatedAt,
+    parentProjectId: next.parentProjectId
   };
   var columns = BA_FOX_CONFIG.PROJECT_COLUMNS;
   [
@@ -231,12 +277,13 @@ function baFoxUpdateProject_(request) {
     [columns.OWNER_USER_ID, updatedProject.ownerUserId],
     [columns.STATUS, updatedProject.status],
     [columns.DESCRIPTION, updatedProject.description],
-    [columns.UPDATED_AT, updatedProject.updatedAt]
+    [columns.UPDATED_AT, updatedProject.updatedAt],
+    [columns.PARENT_PROJECT_ID, updatedProject.parentProjectId]
   ].forEach(function(update) {
     match.sheet.getRange(match.rowNumber, update[0]).setValue(update[1]);
   });
 
-  var changedFields = ['name', 'department', 'ownerEmail', 'status', 'description'].filter(function(field) {
+  var changedFields = ['name', 'department', 'ownerEmail', 'status', 'description', 'parentProjectId'].filter(function(field) {
     return baFoxSafeString(previous[field]) !== baFoxSafeString(updatedProject[field]);
   });
   var auditResult = baFoxAuditTaskAction({
