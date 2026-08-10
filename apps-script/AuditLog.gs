@@ -46,7 +46,7 @@ function baFoxAuditTaskAction(details) {
 
       if (compactKey === 'eventid') return details.eventId || baFoxAuditEventId_(details);
       if (key === 'timestamp') return details.timestamp || baFoxIsoNow();
-      if (key === 'actor') return details.actor || 'BA Fox Web';
+      if (key === 'actor') return details.actor || 'MF Group Tracker';
       if (compactKey === 'taskid' || compactKey === 'entityid') return details.taskId || '';
       if (compactKey === 'entitytype') return details.entityType || 'task';
       if (key === 'action') return details.action || '';

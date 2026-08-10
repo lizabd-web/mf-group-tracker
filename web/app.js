@@ -3894,21 +3894,61 @@ function renderMfDependencies() {
 const bizDevStages = Object.freeze(['Первичный контакт', 'Сбор информации', 'Документы / onboarding', 'KYC / compliance', 'Коммерция / тарифы', 'API / техоценка', 'Интеграция', 'Тестирование', 'Запуск', 'Работа / масштабирование']);
 const bizDevWaitingStatuses = Object.freeze(['Активно', 'Waiting for partner', 'Waiting for us', 'On hold', 'Blocked']);
 let activeDealDirection = 'bizdev';
+let activeDealWaiting = 'all';
+let activeDealPriority = 'all';
+let activeDealOwner = 'all';
+
+function normalizedDealText(value) {
+  return String(value || '').trim().toLocaleLowerCase('ru');
+}
+
+function tasksForDeal(deal) {
+  const partner = normalizedDealText(deal && deal.partner);
+  if (!partner) return [];
+  return allLoadedTasks().filter(function(task) {
+    return !task.archived && normalizedDealText(task.organization) === partner;
+  }).sort(compareTaskUrgency);
+}
+
+function dealMatchesActiveFilters(deal, profile) {
+  const direction = normalizedDealText(deal.direction || 'BizDev');
+  const isBizDev = !direction || direction === 'bizdev' || direction === 'business development';
+  const owner = normalizedDealText(deal.ownerEmail);
+  return (activeDealDirection === 'all' || isBizDev)
+    && (activeDealWaiting === 'all' || deal.waitingStatus === activeDealWaiting)
+    && (activeDealPriority === 'all' || deal.priority === activeDealPriority)
+    && (activeDealOwner !== 'mine' || (profile.email && owner === normalizedDealText(profile.email)));
+}
+
+function funnelTaskPreviewHtml(deal) {
+  const tasks = tasksForDeal(deal);
+  const visible = tasks.slice(0, 3);
+  if (!tasks.length) return '<p class="bizdev-linked-tasks"><strong>Задачи:</strong> пока нет</p>';
+  return '<div class="bizdev-linked-tasks"><strong>Задачи · ' + tasks.length + '</strong><ul>' + visible.map(function(task) {
+    return '<li><button type="button" class="text-button" data-task-edit="' + escapeHtml(task.id) + '">' + escapeHtml(removeIsoDateNoise(task.title) || 'Без названия') + '</button></li>';
+  }).join('') + (tasks.length > visible.length ? '<li class="bizdev-more-tasks">ещё ' + (tasks.length - visible.length) + '</li>' : '') + '</ul></div>';
+}
 
 function renderMfFunnel() {
   const deals = dashboardDeals();
   const profile = identityDisplayProfile();
   const canManageDeals = Boolean(profile.permissions && profile.permissions.canManageProjects);
-  const filtered = deals;
-  elements.workspaceControls.innerHTML = '<label class="filter-control">Направление <select id="dealDirectionFilter"><option value="bizdev" selected>BizDev</option></select></label>' + (canManageDeals ? '<button class="primary-button" type="button" data-deal-action="create">Добавить карточку</button>' : '');
+  const filtered = deals.filter(function(deal) { return dealMatchesActiveFilters(deal, profile); });
+  elements.workspaceControls.innerHTML = [
+    '<label class="filter-control">Направление <select id="dealDirectionFilter"><option value="bizdev" selected>BizDev</option></select></label>',
+    '<label class="filter-control">Статус <select id="dealWaitingFilter"><option value="all">Все</option>' + bizDevWaitingStatuses.map(function(status) { return '<option value="' + escapeHtml(status) + '"' + (activeDealWaiting === status ? ' selected' : '') + '>' + escapeHtml(status) + '</option>'; }).join('') + '</select></label>',
+    '<label class="filter-control">Приоритет <select id="dealPriorityFilter"><option value="all">Все</option><option value="High"' + (activeDealPriority === 'High' ? ' selected' : '') + '>Высокий</option><option value="Medium"' + (activeDealPriority === 'Medium' ? ' selected' : '') + '>Средний</option><option value="Low"' + (activeDealPriority === 'Low' ? ' selected' : '') + '>Низкий</option></select></label>',
+    '<label class="filter-control">Ответственный <select id="dealOwnerFilter"><option value="all">Все</option><option value="mine"' + (activeDealOwner === 'mine' ? ' selected' : '') + '>Мои карточки</option></select></label>',
+    canManageDeals ? '<button class="primary-button" type="button" data-deal-action="create">Добавить карточку</button>' : ''
+  ].join('');
   if (!deals.length) {
     elements.taskList.innerHTML = '<article class="empty-state"><strong>Воронка пока не создана</strong><span>Лист Deals станет единым реестром партнёров. Существующие задачи останутся отдельными действиями внутри карточек.</span></article>';
     return;
   }
   elements.taskList.innerHTML = '<section class="bizdev-funnel">' + bizDevStages.map(function(stage) {
     const stageDeals = filtered.filter(function(deal) { return (deal.stage || bizDevStages[0]) === stage; });
-    return '<section class="bizdev-stage"><div class="mf-section-title"><h3>' + escapeHtml(stage) + '</h3><span>' + stageDeals.length + '</span></div><div class="bizdev-deal-list">' + (stageDeals.length ? stageDeals.map(function(deal) {
-      return '<article class="bizdev-deal-card"><div class="mf-task-head"><strong>' + escapeHtml(deal.partner) + '</strong>' + mfPill(deal.waitingStatus || 'Активно', deal.waitingStatus === 'Blocked' ? 'critical' : 'neutral') + '</div><p>' + escapeHtml(deal.direction || 'BizDev') + (deal.geo ? ' · ' + escapeHtml(deal.geo) : '') + '</p><p><strong>Следующий шаг:</strong> ' + escapeHtml(deal.nextStep || 'Не указан') + '</p>' + (deal.followUpDate ? '<p><strong>Follow-up:</strong> ' + escapeHtml(deal.followUpDate) + '</p>' : '') + (deal.blocker ? '<p class="task-blocker"><strong>Блокер:</strong> ' + escapeHtml(deal.blocker) + '</p>' : '') + '<div class="mf-task-meta"><span>' + escapeHtml(deal.priority || 'Medium') + '</span><span>' + escapeHtml(deal.ownerEmail || 'Ответственный не назначен') + '</span></div>' + (canManageDeals ? '<div class="mf-action-row"><button class="secondary-button" type="button" data-deal-action="edit" data-deal-id="' + escapeHtml(deal.id) + '">Открыть карточку</button></div>' : '') + '</article>';
+    return '<section class="bizdev-stage" data-deal-stage="' + escapeHtml(stage) + '"><div class="mf-section-title"><h3>' + escapeHtml(stage) + '</h3><span>' + stageDeals.length + '</span></div><div class="bizdev-deal-list">' + (stageDeals.length ? stageDeals.map(function(deal) {
+      return '<article class="bizdev-deal-card"' + (canManageDeals ? ' draggable="true" data-draggable-deal-id="' + escapeHtml(deal.id) + '"' : '') + '><div class="mf-task-head"><strong>' + escapeHtml(deal.partner) + '</strong>' + mfPill(deal.waitingStatus || 'Активно', deal.waitingStatus === 'Blocked' ? 'critical' : 'neutral') + '</div><p>' + escapeHtml(deal.direction || 'BizDev') + (deal.geo ? ' · ' + escapeHtml(deal.geo) : '') + '</p><p><strong>Следующий шаг:</strong> ' + escapeHtml(deal.nextStep || 'Не указан') + '</p>' + (deal.followUpDate ? '<p><strong>Follow-up:</strong> ' + escapeHtml(deal.followUpDate) + '</p>' : '') + (deal.blocker ? '<p class="task-blocker"><strong>Блокер:</strong> ' + escapeHtml(deal.blocker) + '</p>' : '') + funnelTaskPreviewHtml(deal) + '<div class="mf-task-meta"><span>' + escapeHtml(deal.priority || 'Medium') + '</span><span>' + escapeHtml(deal.ownerEmail || 'Ответственный не назначен') + '</span></div>' + (canManageDeals ? '<div class="mf-action-row"><button class="secondary-button" type="button" data-deal-action="edit" data-deal-id="' + escapeHtml(deal.id) + '">Открыть карточку</button><button class="secondary-button" type="button" data-deal-action="create-task" data-deal-id="' + escapeHtml(deal.id) + '">Добавить задачу</button></div>' : '') + '</article>';
     }).join('') : '<p class="project-tree-empty">Нет сделок на этой стадии.</p>') + '</div></section>';
   }).join('') + '</section>';
 }
@@ -3933,11 +3973,44 @@ function openEditDealModal(dealId) {
   const userOptions = dashboardUsers().map(function(user) { return '<option value="' + escapeHtml(user.email) + '">' + escapeHtml(user.displayName || user.email) + '</option>'; }).join('');
   form.elements.ownerEmail.innerHTML = '<option value="">Не назначен</option>' + userOptions;
   form.elements.coOwnerEmail.innerHTML = '<option value="">Не назначен</option>' + userOptions;
-  ['partner', 'direction', 'geo', 'product', 'stage', 'waitingStatus', 'priority', 'ownerEmail', 'coOwnerEmail', 'nextStep', 'followUpDate', 'lastContact', 'blocker', 'waitingForPartner', 'waitingForUs'].forEach(function(field) { form.elements[field].value = deal && deal[field] ? deal[field] : (field === 'direction' ? 'BizDev' : (field === 'stage' ? bizDevStages[0] : (field === 'waitingStatus' ? 'Активно' : (field === 'priority' ? 'Medium' : '')))); });
+  ['partner', 'direction', 'geo', 'product', 'stage', 'waitingStatus', 'priority', 'ownerEmail', 'coOwnerEmail', 'nextStep', 'economics', 'apiReceived', 'compliance', 'followUpDate', 'lastContact', 'blocker', 'waitingForPartner', 'waitingForUs'].forEach(function(field) { form.elements[field].value = deal && deal[field] ? deal[field] : (field === 'direction' ? 'BizDev' : (field === 'stage' ? bizDevStages[0] : (field === 'waitingStatus' ? 'Активно' : (field === 'priority' ? 'Medium' : '')))); });
   elements.editDealTitle.textContent = deal ? 'Карточка партнёра' : 'Новая карточка партнёра';
   elements.editDealModal.hidden = false;
   renderEditDealModal();
   form.elements.partner.focus();
+}
+
+function openCreateDealTask(dealId) {
+  const deal = dashboardDeals().find(function(item) { return item.id === dealId; });
+  if (!deal) return;
+  const owner = dashboardUsers().find(function(user) {
+    return normalizedDealText(user.email) === normalizedDealText(deal.ownerEmail);
+  });
+  const nextAction = deal.nextStep || ('Следующее действие по ' + deal.partner);
+  openCreateTaskModal({
+    title: nextAction,
+    organization: deal.partner,
+    nextAction: nextAction,
+    category: deal.direction || 'BizDev',
+    priority: deal.priority || 'Medium',
+    deadline: isoDateFromValue(deal.followUpDate),
+    controlDate: isoDateFromValue(deal.followUpDate),
+    owner: owner ? (owner.defaultOwnerLabel || owner.displayName || '') : ''
+  });
+}
+
+async function moveDealToStage(dealId, stage) {
+  const deal = dashboardDeals().find(function(item) { return item.id === dealId; });
+  if (!deal || !stage || deal.stage === stage || !safeWritesEnabled()) return;
+  try {
+    await BAFoxClient.updateDeal(Object.assign({ dealId: deal.id, stage: stage }, identityRequestParams()));
+    await loadDashboard({ forceRefresh: true });
+    flashMessage = 'Карточка «' + deal.partner + '» перенесена: ' + stage + '.';
+    render();
+  } catch (error) {
+    flashMessage = error && error.message ? error.message : 'Не удалось перенести карточку.';
+    render();
+  }
 }
 
 function closeEditDealModal() {
@@ -3951,7 +4024,7 @@ async function handleEditDealSubmit(event) {
   event.preventDefault();
   const formData = new FormData(elements.editDealForm);
   const payload = {};
-  ['dealId', 'partner', 'direction', 'geo', 'product', 'stage', 'waitingStatus', 'priority', 'ownerEmail', 'coOwnerEmail', 'nextStep', 'followUpDate', 'lastContact', 'blocker', 'waitingForPartner', 'waitingForUs'].forEach(function(field) { payload[field] = String(formData.get(field) || '').trim(); });
+  ['dealId', 'partner', 'direction', 'geo', 'product', 'stage', 'waitingStatus', 'priority', 'ownerEmail', 'coOwnerEmail', 'nextStep', 'economics', 'apiReceived', 'compliance', 'followUpDate', 'lastContact', 'blocker', 'waitingForPartner', 'waitingForUs'].forEach(function(field) { payload[field] = String(formData.get(field) || '').trim(); });
   if (!payload.partner || !payload.direction || !payload.nextStep) {
     editDealState = { status: 'error', message: 'Заполните партнёра, направление и следующий шаг.', dealId: payload.dealId };
     renderEditDealModal();
@@ -4706,6 +4779,14 @@ function openCreateTaskModal(context) {
     elements.createTaskForm.elements.parentTaskId.value = createTaskContext.parentTaskId;
     if (parent && parent.projectId) elements.createTaskForm.elements.projectId.value = parent.projectId;
   }
+  ['title', 'organization', 'nextAction', 'category', 'priority', 'status', 'deadline', 'controlDate', 'owner'].forEach(function(field) {
+    if (createTaskContext[field] && elements.createTaskForm.elements[field]) {
+      elements.createTaskForm.elements[field].value = createTaskContext[field];
+    }
+  });
+  if (createTaskContext.organization || createTaskContext.nextAction || createTaskContext.category) {
+    createTaskDetailsOpen = true;
+  }
   elements.createTaskModal.hidden = false;
   updateCollaboratorSummary();
   renderCreateTaskModal();
@@ -5193,6 +5274,7 @@ function createTaskPayloadFromForm() {
     collaboratorEmails: formData.getAll('collaboratorEmails').map(function (email) { return String(email || '').trim(); }).filter(Boolean).join(','),
     projectId: String(formData.get('projectId') || '').trim(),
     parentTaskId: String(formData.get('parentTaskId') || '').trim(),
+    organization: String(formData.get('organization') || '').trim(),
     category: String(formData.get('category') || '').trim(),
     status: String(formData.get('status') || '').trim(),
     priority: String(formData.get('priority') || '').trim(),
@@ -5388,7 +5470,7 @@ function addCreatedTaskToCurrentQueue(createResponse, payload) {
     controlDate: payload.controlDate,
     nextReminder: payload.controlDate || payload.reminder,
     comment: payload.comment,
-    source: 'BA Fox Web',
+    source: 'MF Group Tracker',
     appSource: 'web',
   };
   data.open.tasks = uniqueTasks([created].concat(data.open.tasks));
@@ -5623,13 +5705,29 @@ elements.workspaceControls.addEventListener('change', function (event) {
   if (event.target && event.target.id === 'dealDirectionFilter') {
     activeDealDirection = event.target.value || 'all';
     renderMfFunnel();
+    return;
+  }
+  if (event.target && event.target.id === 'dealWaitingFilter') {
+    activeDealWaiting = event.target.value || 'all';
+    renderMfFunnel();
+    return;
+  }
+  if (event.target && event.target.id === 'dealPriorityFilter') {
+    activeDealPriority = event.target.value || 'all';
+    renderMfFunnel();
+    return;
+  }
+  if (event.target && event.target.id === 'dealOwnerFilter') {
+    activeDealOwner = event.target.value || 'all';
+    renderMfFunnel();
   }
 });
 
 elements.workspaceControls.addEventListener('click', function (event) {
   const dealActionButton = event.target.closest('[data-deal-action]');
   if (dealActionButton) {
-    openEditDealModal(dealActionButton.dataset.dealAction === 'edit' ? dealActionButton.dataset.dealId : '');
+    if (dealActionButton.dataset.dealAction === 'create-task') openCreateDealTask(dealActionButton.dataset.dealId);
+    else openEditDealModal(dealActionButton.dataset.dealAction === 'edit' ? dealActionButton.dataset.dealId : '');
     return;
   }
   const taskFilterButton = event.target.closest('[data-task-filter]');
@@ -5642,7 +5740,8 @@ elements.workspaceControls.addEventListener('click', function (event) {
 elements.taskList.addEventListener('click', function (event) {
   const dealActionButton = event.target.closest('[data-deal-action]');
   if (dealActionButton) {
-    openEditDealModal(dealActionButton.dataset.dealAction === 'edit' ? dealActionButton.dataset.dealId : '');
+    if (dealActionButton.dataset.dealAction === 'create-task') openCreateDealTask(dealActionButton.dataset.dealId);
+    else openEditDealModal(dealActionButton.dataset.dealAction === 'edit' ? dealActionButton.dataset.dealId : '');
     return;
   }
   const openProjectButton = event.target.closest('[data-open-project]');
@@ -5747,6 +5846,43 @@ elements.taskList.addEventListener('click', function (event) {
   if (actionButton) {
     handleTaskAction(actionButton);
   }
+});
+
+elements.taskList.addEventListener('dragstart', function(event) {
+  const card = event.target.closest('[data-draggable-deal-id]');
+  if (!card || !event.dataTransfer) return;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', card.dataset.draggableDealId);
+  card.classList.add('is-dragging');
+});
+
+elements.taskList.addEventListener('dragend', function(event) {
+  const card = event.target.closest('[data-draggable-deal-id]');
+  if (card) card.classList.remove('is-dragging');
+  Array.prototype.forEach.call(elements.taskList.querySelectorAll('.bizdev-stage.is-drop-target'), function(stage) {
+    stage.classList.remove('is-drop-target');
+  });
+});
+
+elements.taskList.addEventListener('dragover', function(event) {
+  const stage = event.target.closest('[data-deal-stage]');
+  if (!stage || !safeWritesEnabled()) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  stage.classList.add('is-drop-target');
+});
+
+elements.taskList.addEventListener('dragleave', function(event) {
+  const stage = event.target.closest('[data-deal-stage]');
+  if (stage && !stage.contains(event.relatedTarget)) stage.classList.remove('is-drop-target');
+});
+
+elements.taskList.addEventListener('drop', function(event) {
+  const stage = event.target.closest('[data-deal-stage]');
+  if (!stage || !event.dataTransfer) return;
+  event.preventDefault();
+  stage.classList.remove('is-drop-target');
+  moveDealToStage(event.dataTransfer.getData('text/plain'), stage.dataset.dealStage || '');
 });
 
 elements.taskList.addEventListener('change', function (event) {

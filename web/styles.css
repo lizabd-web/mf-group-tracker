@@ -3788,11 +3788,18 @@ h1 {
 }
 
 .bizdev-funnel { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 16px; align-items: start; }
-.bizdev-stage { border: 1px solid var(--line); border-radius: 18px; padding: 14px; background: rgba(255,255,255,.58); min-height: 180px; }
+.bizdev-stage { border: 1px solid var(--line); border-radius: 18px; padding: 14px; background: rgba(255,255,255,.58); min-height: 180px; transition: border-color .15s ease, background .15s ease; }
+.bizdev-stage.is-drop-target { border-color: var(--accent); background: rgba(255, 74, 190, .08); }
 .bizdev-deal-list { display: grid; gap: 10px; }
 .bizdev-deal-card { border: 1px solid var(--line); border-radius: 14px; padding: 13px; background: var(--panel); box-shadow: 0 5px 18px rgba(18, 30, 56, .06); }
+.bizdev-deal-card[draggable="true"] { cursor: grab; }
+.bizdev-deal-card.is-dragging { opacity: .45; cursor: grabbing; }
 .bizdev-deal-card p { margin: 7px 0; color: var(--muted); }
 .bizdev-deal-card .mf-action-row { margin-top: 12px; }
+.bizdev-linked-tasks { margin: 10px 0; padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); }
+.bizdev-linked-tasks ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 3px; }
+.bizdev-linked-tasks .text-button { padding: 0; text-align: left; font: inherit; color: var(--accent); background: transparent; border: 0; cursor: pointer; }
+.bizdev-more-tasks { color: var(--muted); font-size: 13px; }
 
 .risk-group {
   display: grid;

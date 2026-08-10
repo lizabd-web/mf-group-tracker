@@ -466,7 +466,7 @@ function baFoxSafeCreateTaskRow_(taskId, normalized, now) {
     baFoxSafeString(normalized.organization),
     baFoxSafeString(normalized.title),
     baFoxSafeString(normalized.nextAction),
-    'BA Fox Web',
+    'MF Group Tracker',
     baFoxSafeString(normalized.priority),
     controlDate,
     reminder ? 'date' : '',
@@ -679,7 +679,7 @@ function baFoxSafeCreateTask(request) {
   var now = baFoxIsoNow();
   var taskId = baFoxBuildSafeCreateTaskId_(now);
   var actorProfile = identityCheck.profile || {};
-  var actorLabel = actorProfile.email || actorProfile.displayName || 'BA Fox Web';
+  var actorLabel = actorProfile.email || actorProfile.displayName || 'MF Group Tracker';
   var identityMetadata = baFoxCreateTaskIdentityMetadata_(normalized, actorProfile);
   if (identityMetadata.collaboratorResolution.invalidEmails.length) {
     return baFoxError('VALIDATION_ERROR', 'Collaborators must be active workspace users.', {
@@ -735,7 +735,7 @@ function baFoxSafeCreateTask(request) {
     taskId: taskId,
     status: normalized.status || 'Не начато',
     owner: normalized.owner || 'Лиза',
-    source: 'BA Fox Web',
+    source: 'MF Group Tracker',
     createdAt: now,
     taskIdentityMetadata: identityMetadata,
     appendResult: appendResponse.data,
@@ -926,7 +926,7 @@ function baFoxTaskAction(request) {
   if (!match.ok) {
     baFoxAuditTaskAction({
       timestamp: baFoxIsoNow(),
-      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'BA Fox Web',
+      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'MF Group Tracker',
       taskId: normalized.taskId,
       action: normalized.action,
       routeAction: 'taskAction/' + normalized.action,
@@ -942,7 +942,7 @@ function baFoxTaskAction(request) {
       && !baFoxProfileCanCompleteTask_(identityCheck.profile, previous)) {
     baFoxAuditTaskAction({
       timestamp: baFoxIsoNow(),
-      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'BA Fox Web',
+      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'MF Group Tracker',
       taskId: normalized.taskId,
       action: normalized.action,
       routeAction: 'taskAction/' + normalized.action,
@@ -960,7 +960,7 @@ function baFoxTaskAction(request) {
       && !baFoxProfileCanManageTrashedTask_(identityCheck.profile, previous)) {
     baFoxAuditTaskAction({
       timestamp: baFoxIsoNow(),
-      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'BA Fox Web',
+      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'MF Group Tracker',
       taskId: normalized.taskId,
       action: normalized.action,
       routeAction: 'taskAction/' + normalized.action,
@@ -998,7 +998,7 @@ function baFoxTaskAction(request) {
   if (!updateResponse.ok) {
     baFoxAuditTaskAction({
       timestamp: now,
-      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'BA Fox Web',
+      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'MF Group Tracker',
       taskId: normalized.taskId,
       action: normalized.action,
       previousStatus: previous.status,
@@ -1013,7 +1013,7 @@ function baFoxTaskAction(request) {
 
   var auditResult = baFoxAuditTaskAction({
     timestamp: now,
-    actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'BA Fox Web',
+    actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'MF Group Tracker',
     taskId: normalized.taskId,
     action: normalized.action,
     previousStatus: previous.status,
@@ -1209,7 +1209,7 @@ function baFoxSafeEditTask(request) {
   if (!match.ok) {
     baFoxAuditTaskAction({
       timestamp: baFoxIsoNow(),
-      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'BA Fox Web',
+      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'MF Group Tracker',
       taskId: normalized.taskId,
       action: 'editTask',
       routeAction: 'editTask',
@@ -1223,7 +1223,7 @@ function baFoxSafeEditTask(request) {
   if (baFoxTaskIdMatchCount_(match.sheet, normalized.taskId) !== 1) {
     baFoxAuditTaskAction({
       timestamp: baFoxIsoNow(),
-      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'BA Fox Web',
+      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'MF Group Tracker',
       taskId: normalized.taskId,
       action: 'editTask',
       routeAction: 'editTask',
@@ -1286,7 +1286,7 @@ function baFoxSafeEditTask(request) {
   if (!updateResponse.ok) {
     baFoxAuditTaskAction({
       timestamp: patch.UPDATED_AT,
-      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'BA Fox Web',
+      actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'MF Group Tracker',
       taskId: normalized.taskId,
       action: 'editTask',
       routeAction: 'editTask',
@@ -1302,7 +1302,7 @@ function baFoxSafeEditTask(request) {
 
   var auditResult = baFoxAuditTaskAction({
     timestamp: patch.UPDATED_AT,
-    actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'BA Fox Web',
+    actor: identityCheck.profile && identityCheck.profile.email ? identityCheck.profile.email : 'MF Group Tracker',
     taskId: normalized.taskId,
     action: 'editTask',
     routeAction: 'editTask',

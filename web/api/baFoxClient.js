@@ -27,7 +27,7 @@
     'prepareTaskIdentityColumns',
   ]);
   const TASK_ACTION_MESSAGES = Object.freeze({
-    ACTION_NOT_ALLOWED: 'Это действие пока не включено для EA FOX Web.',
+    ACTION_NOT_ALLOWED: 'Это действие пока не включено для MF Group Tracker.',
     SAFE_WRITES_DISABLED: 'Безопасная запись выключена. Действия доступны только для просмотра.',
     TASK_NOT_FOUND: 'Задача не найдена в таблице.',
     VALIDATION_ERROR: 'Не хватает данных для безопасного действия.',

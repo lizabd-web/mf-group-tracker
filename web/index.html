@@ -94,7 +94,7 @@
       <form id="createTaskForm" novalidate>
         <div class="modal-header">
           <div>
-            <p class="eyebrow">EA FOX Web</p>
+            <p class="eyebrow">MF Group Tracker</p>
             <h2 id="createTaskTitle">Новая задача</h2>
           </div>
           <button class="modal-close" type="button" id="cancelCreateTaskTop" aria-label="Закрыть">×</button>
@@ -133,6 +133,10 @@
             </details>
             <small>Можно выбрать нескольких соисполнителей. Основной ответственный указывается отдельно.</small>
           </fieldset>
+          <label class="form-field form-field-wide create-task-detail">
+            <span>Партнёр / проект</span>
+            <input type="text" name="organization" autocomplete="off" placeholder="Например, название партнёра из воронки" />
+          </label>
           <label class="form-field form-field-wide create-task-detail">
             <span>Следующее действие</span>
             <textarea name="nextAction" rows="3"></textarea>
@@ -214,7 +218,7 @@
       <form id="editTaskForm" novalidate>
         <div class="modal-header">
           <div>
-            <p class="eyebrow">EA FOX Web</p>
+            <p class="eyebrow">MF Group Tracker</p>
             <h2 id="editTaskTitle">Обновить этап</h2>
           </div>
           <button class="modal-close" type="button" id="closeEditTaskTop" aria-label="Закрыть">×</button>
@@ -275,7 +279,7 @@
       <form id="editProjectForm" novalidate>
         <div class="modal-header">
           <div>
-            <p class="eyebrow">EA FOX Web</p>
+            <p class="eyebrow">MF Group Tracker</p>
             <h2 id="editProjectTitle">Редактировать направление</h2>
           </div>
           <button class="modal-close" type="button" id="closeEditProjectTop" aria-label="Закрыть">×</button>
@@ -309,6 +313,9 @@
           <label class="form-field"><span>Ответственный</span><select name="ownerEmail" id="dealOwnerSelect"><option value="">Не назначен</option></select></label>
           <label class="form-field"><span>Соисполнитель</span><select name="coOwnerEmail" id="dealCoOwnerSelect"><option value="">Не назначен</option></select></label>
           <label class="form-field form-field-wide"><span>Следующий шаг</span><textarea name="nextStep" rows="3" required></textarea></label>
+          <label class="form-field form-field-wide"><span>Тариф / экономика</span><textarea name="economics" rows="2"></textarea></label>
+          <label class="form-field"><span>API получено</span><select name="apiReceived"><option value="">Не указано</option><option value="Yes">Да</option><option value="No">Нет</option></select></label>
+          <label class="form-field form-field-wide"><span>Документы / compliance</span><textarea name="compliance" rows="2"></textarea></label>
           <label class="form-field"><span>Дата follow-up</span><input type="date" name="followUpDate" /></label>
           <label class="form-field"><span>Последний контакт</span><input type="date" name="lastContact" /></label>
           <label class="form-field form-field-wide"><span>Блокер</span><textarea name="blocker" rows="2"></textarea></label>
