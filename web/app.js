@@ -69,6 +69,13 @@ const elements = {
   submitEditTask: document.querySelector('#submitEditTask'),
   closeEditTask: document.querySelector('#closeEditTask'),
   closeEditTaskTop: document.querySelector('#closeEditTaskTop'),
+  editProjectModal: document.querySelector('#editProjectModal'),
+  editProjectForm: document.querySelector('#editProjectForm'),
+  editProjectBody: document.querySelector('#editProjectBody'),
+  editProjectMessage: document.querySelector('#editProjectMessage'),
+  submitEditProject: document.querySelector('#submitEditProject'),
+  closeEditProject: document.querySelector('#closeEditProject'),
+  closeEditProjectTop: document.querySelector('#closeEditProjectTop'),
 };
 
 const auditFilters = Object.freeze([
@@ -733,6 +740,7 @@ let createTaskDetailsOpen = false;
 let createTaskContext = { projectId: '', parentTaskId: '' };
 const createTaskDraftStorageKey = 'mfGroupTracker.createTaskDraft';
 let editTaskState = { status: 'idle', message: '', taskId: '' };
+let editProjectState = { status: 'idle', message: '', projectId: '' };
 let performanceState = {
   signInMs: null,
   profileLoadMs: null,
@@ -3798,7 +3806,7 @@ function renderMfProjectDetails() {
   const children = dashboardProjects().filter(function (item) { return item.parentProjectId === project.id; });
   const childCards = children.map(function (child) {
     const childTasks = activeTasks().filter(function (task) { return task.projectId === child.id; });
-    return '<article class="mf-department-card project-directory-card' + (child.status === 'Archived' ? ' archived-project' : '') + '"><div class="mf-task-head"><div><span class="mf-id">' + escapeHtml(child.id) + '</span><h3>' + escapeHtml(child.name) + '</h3></div>' + mfPill(projectStatusLabel(child.status), child.status === 'Active' ? 'green' : 'neutral') + '</div><p>' + escapeHtml(child.description || 'Без описания') + '</p><div class="mf-task-meta"><span>Активные задачи: <strong>' + childTasks.length + '</strong></span><span>Подгруппы: <strong>' + dashboardProjects().filter(function (item) { return item.parentProjectId === child.id; }).length + '</strong></span></div><div class="mf-action-row"><button class="secondary-button" type="button" data-open-project="' + escapeHtml(child.id) + '">Открыть подгруппу</button>' + (safeWritesEnabled() && child.status !== 'Archived' ? '<button class="secondary-button" type="button" data-create-project-task="' + escapeHtml(child.id) + '">Добавить задачу</button>' : '') + '</div></article>';
+    return '<article class="mf-department-card project-directory-card' + (child.status === 'Archived' ? ' archived-project' : '') + '"><div class="mf-task-head"><div><span class="mf-id">' + escapeHtml(child.id) + '</span><h3>' + escapeHtml(child.name) + '</h3></div>' + mfPill(projectStatusLabel(child.status), child.status === 'Active' ? 'green' : 'neutral') + '</div><p>' + escapeHtml(child.description || 'Без описания') + '</p><div class="mf-task-meta"><span>Активные задачи: <strong>' + childTasks.length + '</strong></span><span>Подгруппы: <strong>' + dashboardProjects().filter(function (item) { return item.parentProjectId === child.id; }).length + '</strong></span></div><div class="mf-action-row"><button class="secondary-button" type="button" data-open-project="' + escapeHtml(child.id) + '">Открыть подгруппу</button>' + (safeWritesEnabled() && child.status !== 'Archived' ? '<button class="secondary-button" type="button" data-create-project-task="' + escapeHtml(child.id) + '">Добавить задачу</button>' : '') + (canManageProjects ? '<button class="secondary-button" type="button" data-project-action="edit" data-project-id="' + escapeHtml(child.id) + '">Изменить</button>' : '') + '</div></article>';
   }).join('');
   const manageActions = canManageProjects
     ? '<div class="mf-action-row"><button class="secondary-button" type="button" data-project-action="edit" data-project-id="' + escapeHtml(project.id) + '">Изменить</button>' + (archived ? '<button class="secondary-button" type="button" data-project-action="restore" data-project-id="' + escapeHtml(project.id) + '">Восстановить</button>' : '<button class="secondary-button danger-button" type="button" data-project-action="archive" data-project-id="' + escapeHtml(project.id) + '">В архив</button>') + '</div>'
@@ -4599,6 +4607,85 @@ function openCreateTaskModal(context) {
   elements.createTaskForm.elements.title.focus();
 }
 
+function renderEditProjectModal() {
+  const busy = editProjectState.status === 'loading';
+  elements.submitEditProject.disabled = busy || !safeWritesEnabled();
+  elements.closeEditProject.disabled = busy;
+  elements.closeEditProjectTop.disabled = busy;
+  elements.editProjectMessage.textContent = editProjectState.message || '';
+  elements.editProjectMessage.classList.toggle('error', editProjectState.status === 'error');
+}
+
+function openEditProjectModal(projectId) {
+  const project = findDashboardProject(projectId);
+  if (!project) {
+    flashMessage = 'Направление не найдено. Обновите данные.';
+    render();
+    return;
+  }
+  editProjectState = { status: 'idle', message: '', projectId: project.id };
+  elements.editProjectForm.reset();
+  elements.editProjectForm.elements.projectId.value = project.id;
+  elements.editProjectForm.elements.name.value = project.name || '';
+  const departmentOptions = Array.from(new Set(dashboardDepartments().concat(project.department || '').filter(Boolean)));
+  elements.editProjectForm.elements.department.innerHTML = departmentOptions.map(function (department) {
+    return '<option value="' + escapeHtml(department) + '">' + escapeHtml(department) + '</option>';
+  }).join('');
+  elements.editProjectForm.elements.department.value = project.department || '';
+  elements.editProjectForm.elements.ownerEmail.innerHTML = '<option value="">Не назначен</option>' + dashboardUsers().map(function (user) {
+    const label = (user.displayName || user.defaultOwnerLabel || user.email) + (user.department ? ' · ' + user.department : '');
+    return '<option value="' + escapeHtml(user.email) + '">' + escapeHtml(label) + '</option>';
+  }).join('');
+  elements.editProjectForm.elements.ownerEmail.value = project.ownerEmail || '';
+  elements.editProjectForm.elements.status.value = project.status || 'Active';
+  elements.editProjectForm.elements.description.value = project.description || '';
+  elements.editProjectBody.innerHTML = '<div class="edit-task-summary"><strong>' + escapeHtml(project.parentProjectId ? 'Подгруппа' : 'Направление') + '</strong><span>ID: ' + escapeHtml(project.id) + '</span></div>';
+  elements.editProjectTitle.textContent = project.parentProjectId ? 'Редактировать подгруппу' : 'Редактировать направление';
+  elements.editProjectModal.hidden = false;
+  renderEditProjectModal();
+  elements.editProjectForm.elements.name.focus();
+}
+
+function closeEditProjectModal() {
+  if (editProjectState.status === 'loading') return;
+  elements.editProjectModal.hidden = true;
+  elements.editProjectBody.innerHTML = '';
+  editProjectState = { status: 'idle', message: '', projectId: '' };
+  renderEditProjectModal();
+}
+
+async function handleEditProjectSubmit(event) {
+  event.preventDefault();
+  if (!safeWritesEnabled()) return;
+  const formData = new FormData(elements.editProjectForm);
+  const payload = {
+    projectId: String(formData.get('projectId') || '').trim(),
+    name: String(formData.get('name') || '').trim(),
+    department: String(formData.get('department') || '').trim(),
+    ownerEmail: String(formData.get('ownerEmail') || '').trim(),
+    status: String(formData.get('status') || '').trim(),
+    description: String(formData.get('description') || '').trim(),
+  };
+  if (!payload.name || !payload.department) {
+    editProjectState = { status: 'error', message: 'Введите название и выберите отдел.', projectId: payload.projectId };
+    renderEditProjectModal();
+    return;
+  }
+  editProjectState = { status: 'loading', message: 'Сохраняю изменения…', projectId: payload.projectId };
+  renderEditProjectModal();
+  try {
+    await BAFoxClient.updateProject(Object.assign(payload, identityRequestParams()));
+    elements.editProjectModal.hidden = true;
+    editProjectState = { status: 'idle', message: '', projectId: '' };
+    await loadDashboard({ forceRefresh: true });
+    flashMessage = 'Изменения сохранены.';
+    render();
+  } catch (error) {
+    editProjectState = { status: 'error', message: error && error.message ? error.message : 'Не удалось сохранить изменения.', projectId: payload.projectId };
+    renderEditProjectModal();
+  }
+}
+
 async function handleProjectAction(action, projectId) {
   const departments = dashboardDepartments();
   try {
@@ -4643,40 +4730,8 @@ async function handleProjectAction(action, projectId) {
         }, identityRequestParams()));
         flashMessage = action === 'archive' ? 'Проект перемещён в архив.' : 'Проект восстановлен.';
       } else if (action === 'edit') {
-        const name = window.prompt('Название проекта', project.name || '');
-        if (name === null) return;
-        const department = window.prompt(
-          'Отдел проекта' + (departments.length ? '\nДоступны: ' + departments.join(', ') : ''),
-          project.department || departments[0] || ''
-        );
-        if (department === null) return;
-        const ownerEmail = window.prompt('Рабочая почта ответственного (необязательно)', project.ownerEmail || '');
-        if (ownerEmail === null) return;
-        const status = window.prompt('Статус: Active, Paused, Completed или Archived', project.status || 'Active');
-        if (status === null) return;
-        const description = window.prompt('Краткое описание проекта', project.description || '');
-        if (description === null) return;
-        if (!name.trim() || !department.trim()) {
-          flashMessage = 'Название и отдел проекта обязательны.';
-          render();
-          return;
-        }
-        if (!['Active', 'Paused', 'Completed', 'Archived'].includes(status.trim())) {
-          flashMessage = 'Допустимые статусы: Active, Paused, Completed, Archived.';
-          render();
-          return;
-        }
-        flashMessage = 'Сохраняем проект…';
-        render();
-        await BAFoxClient.updateProject(Object.assign({
-          projectId: project.id,
-          name: name.trim(),
-          department: department.trim(),
-          ownerEmail: ownerEmail.trim(),
-          status: status.trim(),
-          description: description.trim(),
-        }, identityRequestParams()));
-        flashMessage = 'Проект обновлён.';
+        openEditProjectModal(project.id);
+        return;
       } else {
         return;
       }
@@ -5352,6 +5407,10 @@ document.addEventListener('keydown', function (event) {
     closeEditTaskModal();
     return;
   }
+  if (event.key === 'Escape' && !elements.editProjectModal.hidden) {
+    closeEditProjectModal();
+    return;
+  }
   if (event.key === 'Escape' && sidebarOpen) {
     setSidebarOpen(false);
   }
@@ -5380,6 +5439,8 @@ elements.cancelCreateTaskTop.addEventListener('click', closeCreateTaskModal);
 elements.closeCreateTaskSuccess.addEventListener('click', closeCreateTaskSuccessModal);
 elements.closeEditTask.addEventListener('click', closeEditTaskModal);
 elements.closeEditTaskTop.addEventListener('click', closeEditTaskModal);
+elements.closeEditProject.addEventListener('click', closeEditProjectModal);
+elements.closeEditProjectTop.addEventListener('click', closeEditProjectModal);
 elements.createTaskForm.addEventListener('submit', handleCreateTaskSubmit);
 elements.createTaskForm.addEventListener('input', saveCreateTaskDraft);
 elements.createTaskForm.addEventListener('change', function(event) {
@@ -5397,6 +5458,7 @@ elements.createTaskForm.addEventListener('change', function(event) {
 });
 elements.createTaskDetailsToggle.addEventListener('click', function () { setCreateTaskDetailsOpen(!createTaskDetailsOpen); });
 elements.editTaskForm.addEventListener('submit', handleEditTaskSubmit);
+elements.editProjectForm.addEventListener('submit', handleEditProjectSubmit);
 elements.createTaskModal.addEventListener('click', function (event) {
   if (event.target === elements.createTaskModal) {
     closeCreateTaskModal();
@@ -5418,6 +5480,11 @@ elements.createTaskSuccessModal.addEventListener('click', function (event) {
 elements.editTaskModal.addEventListener('click', function (event) {
   if (event.target === elements.editTaskModal) {
     closeEditTaskModal();
+  }
+});
+elements.editProjectModal.addEventListener('click', function (event) {
+  if (event.target === elements.editProjectModal) {
+    closeEditProjectModal();
   }
 });
 
