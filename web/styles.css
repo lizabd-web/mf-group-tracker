@@ -566,6 +566,61 @@ h1 {
   gap: 7px;
 }
 
+.task-parent-link {
+  margin-top: 7px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.project-task-tree {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.project-task-tree summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.project-task-tree ul {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0 0 14px;
+  padding-left: 14px;
+  border-left: 1px solid var(--line);
+  list-style: none;
+}
+
+.project-tree-node {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+}
+
+.project-tree-node strong {
+  min-width: 130px;
+  flex: 1 1 180px;
+}
+
+.project-tree-node span {
+  color: var(--muted);
+}
+
+.project-tree-node .task-action {
+  min-height: 28px;
+  padding: 4px 8px;
+}
+
+.project-tree-empty {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .task-filters {
   margin-bottom: 4px;
 }

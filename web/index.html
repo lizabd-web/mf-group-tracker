@@ -118,6 +118,13 @@
               <option value="">Без проекта</option>
             </select>
           </label>
+          <label class="form-field create-task-detail">
+            <span>Родительская задача</span>
+            <select name="parentTaskId" id="taskParentTaskSelect">
+              <option value="">Верхний уровень проекта</option>
+            </select>
+            <small>Выберите задачу, чтобы создать следующий уровень внутри неё.</small>
+          </label>
           <fieldset class="form-field form-field-wide collaborator-field create-task-detail">
             <legend>Дополнительные ответственные <em>(необязательно)</em></legend>
             <details class="collaborator-dropdown">
