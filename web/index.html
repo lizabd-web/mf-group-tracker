@@ -270,12 +270,35 @@
     </section>
   </div>
 
+  <div class="modal-backdrop" id="editProjectModal" hidden>
+    <section class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="editProjectTitle">
+      <form id="editProjectForm" novalidate>
+        <div class="modal-header">
+          <div>
+            <p class="eyebrow">EA FOX Web</p>
+            <h2 id="editProjectTitle">Редактировать направление</h2>
+          </div>
+          <button class="modal-close" type="button" id="closeEditProjectTop" aria-label="Закрыть">×</button>
+        </div>
+        <input type="hidden" name="projectId" />
+        <div class="edit-task-body" id="editProjectBody"></div>
+        <label class="form-field"><span>Название</span><input type="text" name="name" autocomplete="off" required /></label>
+        <label class="form-field"><span>Отдел</span><select name="department" id="projectDepartmentSelect" required></select></label>
+        <label class="form-field"><span>Основной ответственный</span><select name="ownerEmail" id="projectOwnerSelect"><option value="">Не назначен</option></select></label>
+        <label class="form-field"><span>Статус</span><select name="status" required><option value="Active">Активен</option><option value="Paused">На паузе</option><option value="Completed">Завершён</option><option value="Archived">В архиве</option></select></label>
+        <label class="form-field form-field-wide"><span>Описание</span><textarea name="description" rows="4" placeholder="Краткий контекст и цель"></textarea></label>
+        <div class="modal-message" id="editProjectMessage" role="status"></div>
+        <div class="modal-actions"><button class="secondary-button" type="button" id="closeEditProject">Отмена</button><button class="primary-button" type="submit" id="submitEditProject">Сохранить</button></div>
+      </form>
+    </section>
+  </div>
+
   <script src="config.runtime.js"></script>
   <script src="config.local.js"></script>
   <script src="api/baFoxConfig.js?v=stage41"></script>
   <script src="api/baFoxMockData.js?v=stage41"></script>
   <script src="api/baFoxUiState.js?v=stage41"></script>
   <script src="api/baFoxClient.js?v=stage41"></script>
-  <script src="app.js?v=stage41"></script>
+  <script src="app.js?v=stage43"></script>
 </body>
 </html>
