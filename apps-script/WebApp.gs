@@ -42,7 +42,7 @@ function baFoxCacheKey_(route, parameters) {
 }
 
 function baFoxIsWriteRoute_(route) {
-  return ['taskAction', 'createTask', 'editTask', 'createProject', 'updateProject', 'prepareTaskIdentityColumns'].indexOf(route) !== -1;
+  return ['taskAction', 'createTask', 'editTask', 'createProject', 'updateProject', 'prepareTaskIdentityColumns', 'prepareDealsSheet', 'createDeal', 'updateDeal'].indexOf(route) !== -1;
 }
 
 function baFoxIsCacheBypass_(parameters) {
@@ -145,6 +145,7 @@ function baFoxBuildTaskViewsFromRows_(parameters, storeResult, profile) {
     completed: baFoxListCompletedTasks({ limit: parameters.completedLimit || 50 }, storeResult),
     users: getUsers_().filter(function(user) { return user.status === 'active'; }).map(safeUserSummary_),
     projects: baFoxListProjects_(),
+    deals: baFoxListDeals_(),
     identity: identityDashboardMetadata_(identityParameters, 'fullDashboard')
   };
 }
@@ -165,6 +166,7 @@ function baFoxBuildWorkspaceViewsFromRows_(parameters, storeResult, profile) {
     pushes: baFoxListPushTasks({ dateRange: parameters.dateRange || 'today' }, storeResult),
     users: getUsers_().filter(function(user) { return user.status === 'active'; }).map(safeUserSummary_),
     projects: baFoxListProjects_(),
+    deals: baFoxListDeals_(),
     identity: identityDashboardMetadata_(identityParameters, 'dashboard')
   };
 }
@@ -409,6 +411,15 @@ function baFoxBuildRouteResponse_(route, parameters) {
       break;
     case 'prepareTaskIdentityColumns':
       response = baFoxPrepareTaskIdentityColumns(parameters);
+      break;
+    case 'prepareDealsSheet':
+      response = baFoxEnsureDealsSheet_(parameters);
+      break;
+    case 'createDeal':
+      response = baFoxCreateDeal_(parameters);
+      break;
+    case 'updateDeal':
+      response = baFoxUpdateDeal_(parameters);
       break;
     case 'activeUsers':
       response = getActiveUsersForPreview(parameters);

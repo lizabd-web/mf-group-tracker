@@ -18,7 +18,8 @@ var BA_FOX_CONFIG = {
     NOTIFICATION_QUEUE: 'NotificationQueue',
     CONTACTS: 'Contacts',
     USERS: 'Users',
-    PROJECTS: 'Projects'
+    PROJECTS: 'Projects',
+    DEALS: 'Deals'
   },
   USERS_COLUMNS: {
     USER_ID: 1,
@@ -48,6 +49,8 @@ var BA_FOX_CONFIG = {
     PARENT_PROJECT_ID: 11
   },
   PROJECT_STATUSES: ['Active', 'Paused', 'Completed', 'Archived'],
+  DEAL_STAGES: ['Первичный контакт', 'Сбор информации', 'Документы / onboarding', 'KYC / compliance', 'Коммерция / тарифы', 'API / техоценка', 'Интеграция', 'Тестирование', 'Запуск', 'Работа / масштабирование'],
+  DEAL_WAITING_STATUSES: ['Активно', 'Waiting for partner', 'Waiting for us', 'On hold', 'Blocked'],
   TASK_COLUMNS: {
     ID: 1,
     DATE: 2,

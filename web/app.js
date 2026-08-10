@@ -7,6 +7,7 @@ const viewLabels = Object.freeze({
   departments: ['Направления', 'Вход в направления, их подгруппы и задачи'],
   projectDetails: ['Проект', 'Подгруппы и задачи направления'],
   dependencies: ['Риски', 'Просрочка, блокеры и ожидания'],
+  funnel: ['Воронка BizDev', 'Партнёры, стадии, ожидания и следующий шаг'],
   reports: ['Отчёты', 'Дневные, недельные, отделовые и управленческие сводки'],
   settings: ['Профиль', 'Аккаунт и настройки интерфейса'],
   admin: ['Администрирование', 'Доступы, роли и диагностика'],
@@ -777,6 +778,11 @@ function dashboardUsers() {
 function dashboardProjects() {
   const projects = dashboardData().projects;
   return Array.isArray(projects) ? projects : [];
+}
+
+function dashboardDeals() {
+  const deals = dashboardData().deals;
+  return Array.isArray(deals) ? deals : [];
 }
 
 function taskProjectLabel(task) {
@@ -3877,6 +3883,26 @@ function renderMfDependencies() {
   ].join('');
 }
 
+const bizDevStages = Object.freeze(['Первичный контакт', 'Сбор информации', 'Документы / onboarding', 'KYC / compliance', 'Коммерция / тарифы', 'API / техоценка', 'Интеграция', 'Тестирование', 'Запуск', 'Работа / масштабирование']);
+let activeDealDirection = 'all';
+
+function renderMfFunnel() {
+  const deals = dashboardDeals();
+  const directions = Array.from(new Set(deals.map(function(deal) { return String(deal.direction || '').trim(); }).filter(Boolean))).sort(function(a, b) { return a.localeCompare(b, 'ru'); });
+  const filtered = deals.filter(function(deal) { return activeDealDirection === 'all' || deal.direction === activeDealDirection; });
+  elements.workspaceControls.innerHTML = '<label class="filter-control">Направление <select id="dealDirectionFilter"><option value="all">Все направления</option>' + directions.map(function(direction) { return '<option value="' + escapeHtml(direction) + '"' + (direction === activeDealDirection ? ' selected' : '') + '>' + escapeHtml(direction) + '</option>'; }).join('') + '</select></label>';
+  if (!deals.length) {
+    elements.taskList.innerHTML = '<article class="empty-state"><strong>Воронка пока не создана</strong><span>Лист Deals станет единым реестром партнёров. Существующие задачи останутся отдельными действиями внутри карточек.</span></article>';
+    return;
+  }
+  elements.taskList.innerHTML = '<section class="bizdev-funnel">' + bizDevStages.map(function(stage) {
+    const stageDeals = filtered.filter(function(deal) { return (deal.stage || bizDevStages[0]) === stage; });
+    return '<section class="bizdev-stage"><div class="mf-section-title"><h3>' + escapeHtml(stage) + '</h3><span>' + stageDeals.length + '</span></div><div class="bizdev-deal-list">' + (stageDeals.length ? stageDeals.map(function(deal) {
+      return '<article class="bizdev-deal-card"><div class="mf-task-head"><strong>' + escapeHtml(deal.partner) + '</strong>' + mfPill(escapeHtml(deal.waitingStatus || 'Активно'), deal.waitingStatus === 'Blocked' ? 'critical' : 'neutral') + '</div><p>' + escapeHtml(deal.direction || 'Без направления') + (deal.geo ? ' · ' + escapeHtml(deal.geo) : '') + '</p><p><strong>Следующий шаг:</strong> ' + escapeHtml(deal.nextStep || 'Не указан') + '</p>' + (deal.blocker ? '<p class="task-blocker"><strong>Блокер:</strong> ' + escapeHtml(deal.blocker) + '</p>' : '') + '<div class="mf-task-meta"><span>' + escapeHtml(deal.priority || 'Medium') + '</span><span>' + escapeHtml(deal.ownerEmail || 'Ответственный не назначен') + '</span></div></article>';
+    }).join('') : '<p class="project-tree-empty">Нет сделок на этой стадии.</p>') + '</div></section>';
+  }).join('') + '</section>';
+}
+
 function renderMfReports() {
   const completed = reportableCompletedTasks();
   elements.taskList.innerHTML = [
@@ -4350,6 +4376,10 @@ function renderMfSection() {
   }
   if (activeTab === 'dependencies') {
     renderMfDependencies();
+    return true;
+  }
+  if (activeTab === 'funnel') {
+    renderMfFunnel();
     return true;
   }
   if (activeTab === 'reports') {
@@ -5507,6 +5537,10 @@ elements.workspaceControls.addEventListener('change', function (event) {
   if (event.target && event.target.id === 'categoryFilterSelect') {
     activeCategoryFilter = event.target.value || 'all';
     renderTasks();
+  }
+  if (event.target && event.target.id === 'dealDirectionFilter') {
+    activeDealDirection = event.target.value || 'all';
+    renderMfFunnel();
   }
 });
 

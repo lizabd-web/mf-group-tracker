@@ -583,6 +583,18 @@
         throw error;
       }
     },
+    createDeal: async function (options) {
+      const config = global.BAFoxConfig.getConfig();
+      if (config.useMockData) throw new Error('Создание карточек воронки недоступно без live-источника.');
+      requireWriteCredential(options, config);
+      return getJsonp('createDeal', writeRequestParams(options, config));
+    },
+    updateDeal: async function (options) {
+      const config = global.BAFoxConfig.getConfig();
+      if (config.useMockData) throw new Error('Редактирование карточек воронки недоступно без live-источника.');
+      requireWriteCredential(options, config);
+      return getJsonp('updateDeal', writeRequestParams(options, config));
+    },
     prepareTaskIdentityColumns: async function (options) {
       const config = global.BAFoxConfig.getConfig();
       if (config.useMockData) {
