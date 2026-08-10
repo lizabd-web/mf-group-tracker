@@ -84,6 +84,12 @@ const elements = {
   submitEditDeal: document.querySelector('#submitEditDeal'),
   closeEditDeal: document.querySelector('#closeEditDeal'),
   closeEditDealTop: document.querySelector('#closeEditDealTop'),
+  importDealsModal: document.querySelector('#importDealsModal'),
+  importDealsForm: document.querySelector('#importDealsForm'),
+  importDealsMessage: document.querySelector('#importDealsMessage'),
+  submitImportDeals: document.querySelector('#submitImportDeals'),
+  closeImportDeals: document.querySelector('#closeImportDeals'),
+  closeImportDealsTop: document.querySelector('#closeImportDealsTop'),
 };
 
 const auditFilters = Object.freeze([
@@ -750,6 +756,7 @@ const createTaskDraftStorageKey = 'mfGroupTracker.createTaskDraft';
 let editTaskState = { status: 'idle', message: '', taskId: '' };
 let editProjectState = { status: 'idle', message: '', projectId: '' };
 let editDealState = { status: 'idle', message: '', dealId: '' };
+let importDealsState = { status: 'idle', message: '' };
 let performanceState = {
   signInMs: null,
   profileLoadMs: null,
@@ -3939,7 +3946,7 @@ function renderMfFunnel() {
     '<label class="filter-control">Статус <select id="dealWaitingFilter"><option value="all">Все</option>' + bizDevWaitingStatuses.map(function(status) { return '<option value="' + escapeHtml(status) + '"' + (activeDealWaiting === status ? ' selected' : '') + '>' + escapeHtml(status) + '</option>'; }).join('') + '</select></label>',
     '<label class="filter-control">Приоритет <select id="dealPriorityFilter"><option value="all">Все</option><option value="High"' + (activeDealPriority === 'High' ? ' selected' : '') + '>Высокий</option><option value="Medium"' + (activeDealPriority === 'Medium' ? ' selected' : '') + '>Средний</option><option value="Low"' + (activeDealPriority === 'Low' ? ' selected' : '') + '>Низкий</option></select></label>',
     '<label class="filter-control">Ответственный <select id="dealOwnerFilter"><option value="all">Все</option><option value="mine"' + (activeDealOwner === 'mine' ? ' selected' : '') + '>Мои карточки</option></select></label>',
-    canManageDeals ? '<button class="primary-button" type="button" data-deal-action="create">Добавить карточку</button>' : ''
+    canManageDeals ? '<button class="secondary-button" type="button" data-deal-action="import">Импорт строк</button><button class="primary-button" type="button" data-deal-action="create">Добавить карточку</button>' : ''
   ].join('');
   if (!deals.length) {
     elements.taskList.innerHTML = '<article class="empty-state"><strong>Воронка пока не создана</strong><span>Лист Deals станет единым реестром партнёров. Существующие задачи останутся отдельными действиями внутри карточек.</span></article>';
@@ -4021,6 +4028,144 @@ function closeEditDealModal() {
   elements.editDealModal.hidden = true;
   editDealState = { status: 'idle', message: '', dealId: '' };
   renderEditDealModal();
+}
+
+function dealImportValue(line, label) {
+  const match = String(line || '').match(new RegExp('(?:^|\\|)\\s*' + label.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&') + '\\s*:\\s*([^|]+)', 'i'));
+  return match ? match[1].trim().replace(/[.;]\s*$/, '') : '';
+}
+
+function importStageFor(sourceStage) {
+  const value = normalizedDealText(sourceStage);
+  if (/пауза|ожидание ответа/.test(value)) return 'Сбор информации';
+  if (/запуск|первые кейсы|объём|счёт открыт/.test(value)) return 'Запуск';
+  if (/тест/.test(value)) return 'Тестирование';
+  if (/технич|интеграц|совместная проработка/.test(value)) return 'Интеграция';
+  if (/api|обмен и оценка/.test(value)) return 'API / техоценка';
+  if (/kyb|kyc|compliance/.test(value)) return 'KYC / compliance';
+  if (/онбординг|договор|ndа|nda|документ|подача|открытие/.test(value)) return 'Документы / onboarding';
+  if (/цен|услови|комитет|оффер|матриц/.test(value)) return 'Коммерция / тарифы';
+  return 'Сбор информации';
+}
+
+function importWaitingFor(sourceWaiting, sourceStage) {
+  const value = normalizedDealText(sourceWaiting + ' ' + sourceStage);
+  if (/пауза/.test(value)) return 'On hold';
+  if (/ждём партнёра|ждем партнера|ждём сбер|ждем сбер/.test(value)) return 'Waiting for partner';
+  if (/наш ход|ждём нас|ждем нас/.test(value)) return 'Waiting for us';
+  return 'Активно';
+}
+
+function importPriorityFor(sourcePriority) {
+  const value = String(sourcePriority || '').trim().toUpperCase();
+  return value === 'P0' || value === 'P1' ? 'High' : (value === 'P2' ? 'Medium' : 'Low');
+}
+
+function parseDealImport(source) {
+  let section = '';
+  const deals = [];
+  String(source || '').split(/\r?\n/).forEach(function(rawLine) {
+    const line = rawLine.trim();
+    if (/^#{1,6}\s+/.test(line)) {
+      section = line.replace(/^#{1,6}\s+/, '').trim();
+      return;
+    }
+    if (!/^Партнёр\s*:/i.test(line)) return;
+    const partner = dealImportValue(line, 'Партнёр');
+    const geo = dealImportValue(line, 'GEO');
+    const product = dealImportValue(line, 'Продукт');
+    const sourceStage = dealImportValue(line, 'Этап');
+    const sourceWaiting = dealImportValue(line, 'Статус ожидания');
+    const nextStep = dealImportValue(line, 'Следующий шаг');
+    const blocker = dealImportValue(line, 'Блокер').replace(/^—$/, '');
+    const followUp = dealImportValue(line, 'Follow-up');
+    if (!partner || !product || !nextStep) return;
+    const waitingStatus = importWaitingFor(sourceWaiting, sourceStage);
+    deals.push({
+      partner: partner,
+      direction: 'BizDev',
+      geo: geo === 'не определено' ? '' : geo,
+      product: section ? section + ' · ' + product : product,
+      stage: importStageFor(sourceStage),
+      waitingStatus: waitingStatus,
+      priority: importPriorityFor(dealImportValue(line, 'Приоритет')),
+      nextStep: nextStep,
+      blocker: blocker,
+      waitingForPartner: waitingStatus === 'Waiting for partner' ? nextStep + (followUp ? ' · Контроль: ' + followUp : '') : '',
+      waitingForUs: waitingStatus === 'Waiting for us' ? nextStep + (followUp ? ' · Контроль: ' + followUp : '') : '',
+      compliance: 'Исходный этап: ' + sourceStage + (section ? ' · Реестр: ' + section : '')
+    });
+  });
+  return deals;
+}
+
+function dealImportKey(deal) {
+  return [deal.partner, deal.geo, deal.product].map(normalizedDealText).join('|');
+}
+
+function renderImportDealsModal() {
+  const busy = importDealsState.status === 'loading';
+  elements.submitImportDeals.disabled = busy || !safeWritesEnabled();
+  elements.closeImportDeals.disabled = busy;
+  elements.closeImportDealsTop.disabled = busy;
+  elements.importDealsMessage.textContent = importDealsState.message || '';
+  elements.importDealsMessage.classList.toggle('error', importDealsState.status === 'error');
+}
+
+function openImportDealsModal() {
+  importDealsState = { status: 'idle', message: '' };
+  elements.importDealsForm.reset();
+  elements.importDealsModal.hidden = false;
+  renderImportDealsModal();
+  elements.importDealsForm.elements.source.focus();
+}
+
+function closeImportDealsModal() {
+  if (importDealsState.status === 'loading') return;
+  elements.importDealsModal.hidden = true;
+  importDealsState = { status: 'idle', message: '' };
+  renderImportDealsModal();
+}
+
+async function handleImportDealsSubmit(event) {
+  event.preventDefault();
+  const parsed = parseDealImport(elements.importDealsForm.elements.source.value);
+  if (!parsed.length) {
+    importDealsState = { status: 'error', message: 'Не нашла готовых строк. Нужны поля «Партнёр», «Продукт» и «Следующий шаг».' };
+    renderImportDealsModal();
+    return;
+  }
+  const existing = new Set(dashboardDeals().map(dealImportKey));
+  const unique = parsed.filter(function(deal) {
+    const key = dealImportKey(deal);
+    if (existing.has(key)) return false;
+    existing.add(key);
+    return true;
+  });
+  if (!unique.length) {
+    importDealsState = { status: 'error', message: 'Все ' + parsed.length + ' строк уже есть в воронке — импорт не выполнен.' };
+    renderImportDealsModal();
+    return;
+  }
+  importDealsState = { status: 'loading', message: 'Импортирую ' + unique.length + ' карточек…' };
+  renderImportDealsModal();
+  const failed = [];
+  for (let index = 0; index < unique.length; index += 1) {
+    try {
+      await BAFoxClient.createDeal(Object.assign({}, unique[index], identityRequestParams()));
+    } catch (error) {
+      failed.push(unique[index].partner);
+    }
+  }
+  await loadDashboard({ forceRefresh: true });
+  if (failed.length) {
+    importDealsState = { status: 'error', message: 'Импортировано ' + (unique.length - failed.length) + ' из ' + unique.length + '. Не удалось: ' + failed.join(', ') + '.' };
+    renderImportDealsModal();
+    return;
+  }
+  closeImportDealsModal();
+  flashMessage = 'Импортировано ' + unique.length + ' карточек. Пропущено повторов: ' + (parsed.length - unique.length) + '.';
+  render();
 }
 
 async function handleEditDealSubmit(event) {
@@ -5605,6 +5750,10 @@ document.addEventListener('keydown', function (event) {
     closeEditDealModal();
     return;
   }
+  if (event.key === 'Escape' && !elements.importDealsModal.hidden) {
+    closeImportDealsModal();
+    return;
+  }
   if (event.key === 'Escape' && sidebarOpen) {
     setSidebarOpen(false);
   }
@@ -5637,6 +5786,8 @@ elements.closeEditProject.addEventListener('click', closeEditProjectModal);
 elements.closeEditProjectTop.addEventListener('click', closeEditProjectModal);
 elements.closeEditDeal.addEventListener('click', closeEditDealModal);
 elements.closeEditDealTop.addEventListener('click', closeEditDealModal);
+elements.closeImportDeals.addEventListener('click', closeImportDealsModal);
+elements.closeImportDealsTop.addEventListener('click', closeImportDealsModal);
 elements.createTaskForm.addEventListener('submit', handleCreateTaskSubmit);
 elements.createTaskForm.addEventListener('input', saveCreateTaskDraft);
 elements.createTaskForm.addEventListener('change', function(event) {
@@ -5656,6 +5807,7 @@ elements.createTaskDetailsToggle.addEventListener('click', function () { setCrea
 elements.editTaskForm.addEventListener('submit', handleEditTaskSubmit);
 elements.editProjectForm.addEventListener('submit', handleEditProjectSubmit);
 elements.editDealForm.addEventListener('submit', handleEditDealSubmit);
+elements.importDealsForm.addEventListener('submit', handleImportDealsSubmit);
 elements.createTaskModal.addEventListener('click', function (event) {
   if (event.target === elements.createTaskModal) {
     closeCreateTaskModal();
@@ -5686,6 +5838,10 @@ elements.editProjectModal.addEventListener('click', function (event) {
 });
 elements.editDealModal.addEventListener('click', function (event) {
   if (event.target === elements.editDealModal) closeEditDealModal();
+});
+
+elements.importDealsModal.addEventListener('click', function (event) {
+  if (event.target === elements.importDealsModal) closeImportDealsModal();
 });
 
 elements.workspaceControls.addEventListener('input', function (event) {
@@ -5730,6 +5886,7 @@ elements.workspaceControls.addEventListener('click', function (event) {
   const dealActionButton = event.target.closest('[data-deal-action]');
   if (dealActionButton) {
     if (dealActionButton.dataset.dealAction === 'create-task') openCreateDealTask(dealActionButton.dataset.dealId);
+    else if (dealActionButton.dataset.dealAction === 'import') openImportDealsModal();
     else openEditDealModal(dealActionButton.dataset.dealAction === 'edit' ? dealActionButton.dataset.dealId : '');
     return;
   }
