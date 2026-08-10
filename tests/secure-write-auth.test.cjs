@@ -48,6 +48,18 @@ test('backend authorizes an active registered Google profile without a browser a
   assert.equal(result.authorizationMode, 'google_profile');
 });
 
+test('backend authorizes an active trusted-device session after the initial Google verification', function () {
+  const context = loadAppsScriptAuthorization();
+  context.getVerifiedUserProfile_ = function () {
+    return Object.assign({}, verifiedProfile(), { identityMode: 'trusted_device_session' });
+  };
+
+  const result = context.requireAuthorizedSafeWrite_({ trustedDeviceSession: 'device-session' });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.authorizationMode, 'trusted_device_session');
+});
+
 test('backend denies browser writes without Google identity or a server-side token', function () {
   const context = loadAppsScriptAuthorization();
   context.getVerifiedUserProfile_ = function () {
@@ -178,6 +190,19 @@ test('web client sends Google identity for writes and does not add a token param
   assert.equal(requests.length, 1);
   assert.equal(requests[0].searchParams.get('route'), 'createTask');
   assert.equal(requests[0].searchParams.get('idToken'), 'google-id-token');
+  assert.equal(requests[0].searchParams.has('token'), false);
+});
+
+test('web client sends the server-issued trusted-device session without exposing an action token', async function () {
+  const { client, requests } = loadWebClient();
+
+  await client.createTask({
+    title: 'Test',
+    trustedDeviceSession: 'device-session',
+  });
+
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].searchParams.get('trustedDeviceSession'), 'device-session');
   assert.equal(requests[0].searchParams.has('token'), false);
 });
 

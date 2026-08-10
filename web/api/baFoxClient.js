@@ -339,6 +339,7 @@
       || params.identityToken
       || params.credential
       || params.googleCredential
+      || params.trustedDeviceSession
     );
   }
 

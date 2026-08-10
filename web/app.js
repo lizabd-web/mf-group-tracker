@@ -356,6 +356,7 @@ const mfCurrentUserId = 'emp_lisa';
 
 const identityStorageKey = 'mfGroupTracker.identityPrepared';
 const identityTokenStorageKey = 'mfGroupTracker.trustedDeviceGoogleIdentityToken';
+const trustedDeviceSessionStorageKey = 'mfGroupTracker.trustedDeviceSession';
 const legacyIdentityTokenStorageKey = 'mfGroupTracker.googleIdentityToken';
 const personalizationStoragePrefix = 'mfGroupTracker.personalizationPreview';
 let googleAutoSignInInFlight = false;
@@ -1632,6 +1633,26 @@ function setStoredIdentityToken(token) {
   }
 }
 
+function getStoredTrustedDeviceSession() {
+  try {
+    return window.localStorage.getItem(trustedDeviceSessionStorageKey) || '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function setStoredTrustedDeviceSession(session) {
+  try {
+    if (session) {
+      window.localStorage.setItem(trustedDeviceSessionStorageKey, session);
+    } else {
+      window.localStorage.removeItem(trustedDeviceSessionStorageKey);
+    }
+  } catch (error) {
+    // The current Google sign-in can still continue without trusted-device persistence.
+  }
+}
+
 function identityTokenIsUsable(token) {
   try {
     const parts = String(token || '').split('.');
@@ -1644,6 +1665,8 @@ function identityTokenIsUsable(token) {
 }
 
 function identityRequestParams() {
+  const trustedDeviceSession = getStoredTrustedDeviceSession();
+  if (trustedDeviceSession) return { trustedDeviceSession: trustedDeviceSession };
   const token = getStoredIdentityToken();
   return token ? { idToken: token } : {};
 }
@@ -1749,8 +1772,9 @@ async function requestGoogleIdentityCredential() {
 }
 
 async function restoreGoogleSessionFromCredential(credential) {
+  setStoredTrustedDeviceSession('');
   setStoredIdentityToken(credential);
-  await loadProfile();
+  await loadProfile({ idToken: credential });
   const profile = identityDisplayProfile();
   if (!profile.isVerifiedByGoogle || !(profile.permissions && profile.permissions.canUseDashboard)) {
     return;
@@ -1762,6 +1786,18 @@ async function restoreGoogleSessionFromCredential(credential) {
 }
 
 async function tryRestoreGoogleSession() {
+  if (getStoredTrustedDeviceSession()) {
+    await loadProfile();
+    const trustedProfile = identityDisplayProfile();
+    if (trustedProfile.isVerifiedByGoogle && trustedProfile.permissions && trustedProfile.permissions.canUseDashboard) {
+      activeTab = 'dashboard';
+      await loadDashboard();
+      flashMessage = 'Рабочий профиль восстановлен на доверенном устройстве.';
+      render();
+      return true;
+    }
+    setStoredTrustedDeviceSession('');
+  }
   const storedToken = getStoredIdentityToken();
   if (storedToken && identityTokenIsUsable(storedToken)) {
     await loadProfile();
@@ -1866,7 +1902,8 @@ function identityDisplayProfile() {
   const backendPermissions = backendProfileData && backendProfileData.permissions ? backendProfileData.permissions : {};
   const registryUser = identityState.registryUser || fallbackUser;
   const profileEmail = backendProfile && backendProfile.email ? backendProfile.email : identityState.email;
-  const verifiedByGoogle = backendProfileData && backendProfileData.identityMode === 'google_token_verified';
+  const verifiedByGoogle = backendProfileData
+    && ['google_token_verified', 'trusted_device_session'].includes(backendProfileData.identityMode);
   const deniedByDomain = backendProfileData && backendProfileData.identityMode === 'domain_not_allowed';
   return {
     isSignedIn: Boolean(backendProfile && backendProfile.isAuthenticated) || identityState.status === 'signed_in_preview',
@@ -4733,6 +4770,7 @@ function closeEditTaskModal() {
 async function handleIdentityAction(action) {
   if (action === 'signout') {
     setStoredIdentityToken('');
+    setStoredTrustedDeviceSession('');
     googleAutoSignInInFlight = false;
     if (googleIdentityScriptLoaded() && window.google.accounts.id.disableAutoSelect) {
       window.google.accounts.id.disableAutoSelect();
@@ -4775,8 +4813,9 @@ async function handleIdentityAction(action) {
       flashMessage = 'Открываем Google-вход...';
       render();
       const credential = await requestGoogleIdentityCredential();
+      setStoredTrustedDeviceSession('');
       setStoredIdentityToken(credential);
-      await loadProfile();
+      await loadProfile({ idToken: credential });
       const profile = identityDisplayProfile();
       if (profile.isVerifiedByGoogle && profile.permissions && profile.permissions.canUseDashboard) {
         activeTab = 'dashboard';
@@ -5098,7 +5137,7 @@ async function loadDashboard(options) {
   render();
 }
 
-async function loadProfile() {
+async function loadProfile(options) {
   const profileStartedAt = performance.now();
   profileState = BAFoxClient.createLoadingState('profile');
   taskIdentitySchemaState.status = 'idle';
@@ -5106,7 +5145,10 @@ async function loadProfile() {
   if (activeTab === 'settings') {
     renderPanel();
   }
-  profileState = await BAFoxClient.getProfile(identityRequestParams());
+  profileState = await BAFoxClient.getProfile(options || identityRequestParams());
+  if (profileState.status === 'success' && profileState.data && profileState.data.trustedDeviceSession) {
+    setStoredTrustedDeviceSession(profileState.data.trustedDeviceSession);
+  }
   performanceState.profileLoadMs = Math.round(performance.now() - profileStartedAt);
   render();
 }
