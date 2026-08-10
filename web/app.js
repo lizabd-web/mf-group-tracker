@@ -355,7 +355,8 @@ const usersRegistry = Object.freeze([
 const mfCurrentUserId = 'emp_lisa';
 
 const identityStorageKey = 'mfGroupTracker.identityPrepared';
-const identityTokenStorageKey = 'mfGroupTracker.googleIdentityToken';
+const identityTokenStorageKey = 'mfGroupTracker.trustedDeviceGoogleIdentityToken';
+const legacyIdentityTokenStorageKey = 'mfGroupTracker.googleIdentityToken';
 const personalizationStoragePrefix = 'mfGroupTracker.personalizationPreview';
 let googleAutoSignInInFlight = false;
 
@@ -726,6 +727,7 @@ visibilityPreviewState.status = 'idle';
 let taskActionState = {};
 let createTaskState = { status: 'idle', message: '' };
 let createTaskDetailsOpen = false;
+let createTaskContext = { projectId: '', parentTaskId: '' };
 const createTaskDraftStorageKey = 'mfGroupTracker.createTaskDraft';
 let editTaskState = { status: 'idle', message: '', taskId: '' };
 let performanceState = {
@@ -771,6 +773,13 @@ function taskProjectLabel(task) {
   if (!projectId) return '';
   const project = dashboardProjects().find(function (item) { return item.id === projectId; });
   return project ? project.name : projectId;
+}
+
+function taskHierarchyLabel(task) {
+  const parentTaskId = String(task && task.parentTaskId || '').trim();
+  if (!parentTaskId) return '';
+  const parent = allLoadedTasks().find(function(item) { return item.id === parentTaskId; });
+  return parent ? parent.title : parentTaskId;
 }
 
 function dashboardDepartments() {
@@ -1595,7 +1604,16 @@ function emailDomain(value) {
 
 function getStoredIdentityToken() {
   try {
-    return window.sessionStorage.getItem(identityTokenStorageKey) || '';
+    const trustedDeviceToken = window.localStorage.getItem(identityTokenStorageKey) || '';
+    if (trustedDeviceToken) {
+      return trustedDeviceToken;
+    }
+    const legacyToken = window.sessionStorage.getItem(legacyIdentityTokenStorageKey) || '';
+    if (legacyToken) {
+      window.localStorage.setItem(identityTokenStorageKey, legacyToken);
+      window.sessionStorage.removeItem(legacyIdentityTokenStorageKey);
+    }
+    return legacyToken;
   } catch (error) {
     return '';
   }
@@ -1604,12 +1622,24 @@ function getStoredIdentityToken() {
 function setStoredIdentityToken(token) {
   try {
     if (token) {
-      window.sessionStorage.setItem(identityTokenStorageKey, token);
+      window.localStorage.setItem(identityTokenStorageKey, token);
     } else {
-      window.sessionStorage.removeItem(identityTokenStorageKey);
+      window.localStorage.removeItem(identityTokenStorageKey);
+      window.sessionStorage.removeItem(legacyIdentityTokenStorageKey);
     }
   } catch (error) {
-    // Session token persistence is optional; the current sign-in attempt can still continue.
+    // Trusted-device persistence is optional; the current sign-in attempt can still continue.
+  }
+}
+
+function identityTokenIsUsable(token) {
+  try {
+    const parts = String(token || '').split('.');
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return Number(payload.exp || 0) * 1000 > Date.now() + 30000;
+  } catch (error) {
+    return false;
   }
 }
 
@@ -1732,6 +1762,21 @@ async function restoreGoogleSessionFromCredential(credential) {
 }
 
 async function tryRestoreGoogleSession() {
+  const storedToken = getStoredIdentityToken();
+  if (storedToken && identityTokenIsUsable(storedToken)) {
+    await loadProfile();
+    const storedProfile = identityDisplayProfile();
+    if (storedProfile.isVerifiedByGoogle && storedProfile.permissions && storedProfile.permissions.canUseDashboard) {
+      activeTab = 'dashboard';
+      await loadDashboard();
+      flashMessage = 'Рабочий профиль восстановлен на доверенном устройстве.';
+      render();
+      return true;
+    }
+  }
+  if (storedToken) {
+    setStoredIdentityToken('');
+  }
   const config = BAFoxConfig.getConfig();
   if (!config.hasGoogleClientId) {
     return;
@@ -1755,6 +1800,7 @@ async function tryRestoreGoogleSession() {
   } catch (error) {
     googleAutoSignInInFlight = false;
   }
+  return false;
 }
 
 function findRegistryUserByEmail(email) {
@@ -2675,6 +2721,7 @@ function taskCardHtml(task) {
     '</div>',
     '<div class="task-title">' + escapeHtml(removeIsoDateNoise(task.title)) + '</div>',
     '<div class="task-meta">' + meta.map(function (item) { return '<span>' + escapeHtml(item) + '</span>'; }).join('') + '</div>',
+    task.parentTaskId ? '<div class="task-parent-link">Внутри: ' + escapeHtml(removeIsoDateNoise(taskHierarchyLabel(task))) + '</div>' : '',
     '<div class="next-action"><strong>Следующее действие</strong><span>' + escapeHtml(nextActionText(task)) + '</span></div>',
     '<details class="task-more">',
     '<summary>Ещё</summary>',
@@ -2683,6 +2730,7 @@ function taskCardHtml(task) {
     taskDetailHtml('ID задачи', task.id),
     '</div>',
     actionButtonsHtml(task),
+    '<button class="task-action chip" type="button" data-create-child-task="' + escapeHtml(task.id) + '"' + (!safeWritesEnabled() ? ' disabled' : '') + '>Добавить подзадачу</button>',
     '</details>',
     '</div>',
     '<aside class="task-primary">',
@@ -3692,7 +3740,7 @@ function renderMfDepartments() {
         '</div>',
       ].join('')
       : '';
-    return '<article class="mf-department-card' + (archived ? ' archived-project' : '') + '"><div class="mf-task-head"><div><span class="mf-id">' + escapeHtml(project.id) + '</span><h3>' + escapeHtml(project.name) + '</h3></div>' + mfPill(projectStatusLabel(project.status), project.status === 'Active' ? 'green' : 'neutral') + '</div><p>' + escapeHtml(project.description || 'Без описания') + '</p><div class="mf-task-meta"><span>Отдел: <strong>' + escapeHtml(project.department) + '</strong></span><span>Ответственный: <strong>' + escapeHtml(project.ownerEmail || 'Не назначен') + '</strong></span><span>Активные задачи: <strong>' + projectTasks.length + '</strong></span><span>Просрочено: <strong>' + overdueProjectTasks.length + '</strong></span></div>' + actions + '</article>';
+    return '<article class="mf-department-card project-tree-card' + (archived ? ' archived-project' : '') + '"><div class="mf-task-head"><div><span class="mf-id">' + escapeHtml(project.id) + '</span><h3>' + escapeHtml(project.name) + '</h3></div>' + mfPill(projectStatusLabel(project.status), project.status === 'Active' ? 'green' : 'neutral') + '</div><p>' + escapeHtml(project.description || 'Без описания') + '</p><div class="mf-task-meta"><span>Отдел: <strong>' + escapeHtml(project.department) + '</strong></span><span>Ответственный: <strong>' + escapeHtml(project.ownerEmail || 'Не назначен') + '</strong></span><span>Активные задачи: <strong>' + projectTasks.length + '</strong></span><span>Просрочено: <strong>' + overdueProjectTasks.length + '</strong></span></div>' + (safeWritesEnabled() && !archived ? '<div class="mf-action-row"><button class="secondary-button" type="button" data-create-project-task="' + escapeHtml(project.id) + '">Добавить задачу в проект</button></div>' : '') + projectTaskTreeHtml(projectTasks) + actions + '</article>';
   }).join('');
   const addButton = canManageProjects
     ? '<div class="mf-action-row"><button class="primary-button" type="button" data-project-action="create">Добавить проект</button></div>'
@@ -3703,6 +3751,27 @@ function renderMfDepartments() {
     projects ? '<div class="mf-card-grid departments">' + projects + '</div>' : '<article class="empty-state"><strong>Проектов пока нет</strong><span>Начните с первого рабочего проекта.</span></article>',
     '</section>',
   ].join('');
+}
+
+function projectTaskTreeHtml(tasks) {
+  if (!tasks.length) {
+    return '<p class="project-tree-empty">В проекте пока нет активных задач.</p>';
+  }
+  const byParent = {};
+  const ids = {};
+  tasks.forEach(function(task) { ids[task.id] = true; });
+  tasks.forEach(function(task) {
+    const parentId = ids[task.parentTaskId] ? task.parentTaskId : '';
+    if (!byParent[parentId]) byParent[parentId] = [];
+    byParent[parentId].push(task);
+  });
+  function branch(parentId, ancestors) {
+    return (byParent[parentId] || []).sort(compareTaskUrgency).map(function(task) {
+      if (ancestors.indexOf(task.id) !== -1) return '';
+      return '<li><div class="project-tree-node"><strong>' + escapeHtml(removeIsoDateNoise(task.title)) + '</strong><span>' + escapeHtml(getTaskStatusLabel(task)) + '</span><button class="task-action chip" type="button" data-create-child-task="' + escapeHtml(task.id) + '"' + (!safeWritesEnabled() ? ' disabled' : '') + '>+ ветка</button></div>' + (byParent[task.id] ? '<ul>' + branch(task.id, ancestors.concat(task.id)) + '</ul>' : '') + '</li>';
+    }).join('');
+  }
+  return '<details class="project-task-tree"><summary>Структура задач · ' + tasks.length + '</summary><ul>' + branch('', []) + '</ul></details>';
 }
 
 function renderMfDependencies() {
@@ -4392,10 +4461,11 @@ function openCreateTaskDatePicker(fieldName) {
   input.click();
 }
 
-function openCreateTaskModal() {
+function openCreateTaskModal(context) {
   if (!safeWritesEnabled()) {
     return;
   }
+  createTaskContext = Object.assign({ projectId: '', parentTaskId: '' }, context || {});
   createTaskState = { status: 'idle', message: '' };
   createTaskDetailsOpen = false;
   elements.createTaskForm.reset();
@@ -4417,6 +4487,25 @@ function openCreateTaskModal() {
   }).map(function (project) {
     return '<option value="' + escapeHtml(project.id) + '">' + escapeHtml(project.name + ' · ' + project.id) + '</option>';
   }).join('');
+  const tasks = allLoadedTasks().filter(function(task) { return !task.archived; });
+  const taskById = {};
+  tasks.forEach(function(task) { taskById[task.id] = task; });
+  function taskDepth(task) {
+    let depth = 0;
+    let current = task;
+    const seen = {};
+    while (current && current.parentTaskId && taskById[current.parentTaskId] && !seen[current.parentTaskId]) {
+      seen[current.parentTaskId] = true;
+      depth += 1;
+      current = taskById[current.parentTaskId];
+    }
+    return depth;
+  }
+  elements.createTaskForm.elements.parentTaskId.innerHTML = '<option value="">Верхний уровень проекта</option>' + tasks.sort(function(left, right) {
+    return String(left.title || '').localeCompare(String(right.title || ''), 'ru');
+  }).map(function(task) {
+    return '<option value="' + escapeHtml(task.id) + '">' + escapeHtml('› '.repeat(taskDepth(task)) + removeIsoDateNoise(task.title) + ' · ' + task.id) + '</option>';
+  }).join('');
   try {
     const draft = JSON.parse(window.sessionStorage.getItem(createTaskDraftStorageKey) || '{}');
     Object.keys(draft).forEach(function (field) {
@@ -4432,6 +4521,12 @@ function openCreateTaskModal() {
     createTaskDetailsOpen = Object.keys(draft).some(function(field) { return field !== 'title'; });
   } catch (error) {
     // A missing temporary draft must never block task creation.
+  }
+  if (createTaskContext.projectId) elements.createTaskForm.elements.projectId.value = createTaskContext.projectId;
+  if (createTaskContext.parentTaskId) {
+    const parent = taskById[createTaskContext.parentTaskId];
+    elements.createTaskForm.elements.parentTaskId.value = createTaskContext.parentTaskId;
+    if (parent && parent.projectId) elements.createTaskForm.elements.projectId.value = parent.projectId;
   }
   elements.createTaskModal.hidden = false;
   updateCollaboratorSummary();
@@ -4536,6 +4631,7 @@ function closeCreateTaskModal() {
   }
   elements.createTaskModal.hidden = true;
   createTaskState = { status: 'idle', message: '' };
+  createTaskContext = { projectId: '', parentTaskId: '' };
   renderCreateTaskModal();
 }
 
@@ -4544,7 +4640,7 @@ function saveCreateTaskDraft() {
   try {
     const data = new FormData(elements.createTaskForm);
     const draft = {};
-    ['title', 'owner', 'projectId', 'category', 'status', 'priority', 'nextAction', 'deadline', 'controlDate', 'reminder', 'comment'].forEach(function (field) {
+    ['title', 'owner', 'projectId', 'parentTaskId', 'category', 'status', 'priority', 'nextAction', 'deadline', 'controlDate', 'reminder', 'comment'].forEach(function (field) {
       const value = String(data.get(field) || '').trim();
       if (value) draft[field] = value;
     });
@@ -4867,6 +4963,7 @@ function createTaskPayloadFromForm() {
     owner: String(formData.get('owner') || '').trim(),
     collaboratorEmails: formData.getAll('collaboratorEmails').map(function (email) { return String(email || '').trim(); }).filter(Boolean).join(','),
     projectId: String(formData.get('projectId') || '').trim(),
+    parentTaskId: String(formData.get('parentTaskId') || '').trim(),
     category: String(formData.get('category') || '').trim(),
     status: String(formData.get('status') || '').trim(),
     priority: String(formData.get('priority') || '').trim(),
@@ -5051,6 +5148,7 @@ function addCreatedTaskToCurrentQueue(createResponse, payload) {
     collaboratorEmails: payload.collaboratorEmails,
     category: payload.category,
     projectId: payload.projectId,
+    parentTaskId: payload.parentTaskId,
     status: payload.status,
     priority: payload.priority,
     steps: payload.nextAction,
@@ -5217,6 +5315,13 @@ elements.createTaskForm.addEventListener('change', function(event) {
     updateCollaboratorSummary();
     saveCreateTaskDraft();
   }
+  if (event.target && event.target.name === 'parentTaskId') {
+    const parent = findLoadedTask(event.target.value || '');
+    if (parent && parent.projectId) {
+      elements.createTaskForm.elements.projectId.value = parent.projectId;
+    }
+    saveCreateTaskDraft();
+  }
 });
 elements.createTaskDetailsToggle.addEventListener('click', function () { setCreateTaskDetailsOpen(!createTaskDetailsOpen); });
 elements.editTaskForm.addEventListener('submit', handleEditTaskSubmit);
@@ -5272,6 +5377,20 @@ elements.workspaceControls.addEventListener('click', function (event) {
 });
 
 elements.taskList.addEventListener('click', function (event) {
+  const createProjectTaskButton = event.target.closest('[data-create-project-task]');
+  if (createProjectTaskButton) {
+    openCreateTaskModal({ projectId: createProjectTaskButton.dataset.createProjectTask || '' });
+    return;
+  }
+  const createChildTaskButton = event.target.closest('[data-create-child-task]');
+  if (createChildTaskButton) {
+    const parent = findLoadedTask(createChildTaskButton.dataset.createChildTask || '');
+    openCreateTaskModal({
+      parentTaskId: parent ? parent.id : '',
+      projectId: parent ? parent.projectId : '',
+    });
+    return;
+  }
   const projectActionButton = event.target.closest('[data-project-action]');
   if (projectActionButton) {
     handleProjectAction(projectActionButton.dataset.projectAction, projectActionButton.dataset.projectId || '');
@@ -5584,7 +5703,10 @@ async function initializeDashboard() {
     loadGoogleIdentityScript().catch(function () {
       // Sign-in will show the actionable error if Google remains unavailable.
     });
-    tryRestoreGoogleSession();
+    const restoredOnTrustedDevice = await tryRestoreGoogleSession();
+    if (restoredOnTrustedDevice) {
+      return;
+    }
   }
   await loadProfile();
   const profile = identityDisplayProfile();

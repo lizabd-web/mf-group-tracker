@@ -20,6 +20,8 @@ Main spreadsheet: BA Fox Control Center
 | L | Следующее напоминание | Next reminder timestamp |
 | M | Итог / комментарий | Result or Lisa's notes |
 | N | Канал | ChatGPT, Telegram, Gmail, WhatsApp, etc. |
+| Optional | Project ID | Связь с проектом из листа Projects |
+| Optional | Parent Task ID | ID родительской задачи. Пусто для верхнего уровня; позволяет неограниченную вложенность. |
 
 ## Daily Reports
 
