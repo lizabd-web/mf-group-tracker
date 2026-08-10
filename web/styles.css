@@ -590,6 +590,16 @@ h1 {
   margin: 0;
 }
 
+.project-details-page {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--panel);
+}
+
 .project-task-tree summary {
   cursor: pointer;
   color: var(--accent);
