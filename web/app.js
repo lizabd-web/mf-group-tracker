@@ -3802,6 +3802,7 @@ function renderMfProjectDetails() {
   const profile = identityDisplayProfile();
   const canManageProjects = Boolean(profile.permissions && profile.permissions.canManageProjects);
   const archived = project.status === 'Archived';
+  const parentProject = project.parentProjectId ? findDashboardProject(project.parentProjectId) : null;
   const projectTasks = activeTasks().filter(function (task) { return task.projectId === project.id; });
   const children = dashboardProjects().filter(function (item) { return item.parentProjectId === project.id; });
   const childCards = children.map(function (child) {
@@ -3815,7 +3816,9 @@ function renderMfProjectDetails() {
     ? '<div class="mf-action-row"><button class="primary-button" type="button" data-project-action="create-child" data-project-id="' + escapeHtml(project.id) + '">Добавить подгруппу</button><button class="secondary-button" type="button" data-create-project-task="' + escapeHtml(project.id) + '">Добавить задачу в направление</button></div>'
     : '';
   elements.taskList.innerHTML = [
-    '<div class="mf-action-row"><button class="secondary-button" type="button" data-project-navigation="back">← Все направления</button></div>',
+    '<div class="mf-action-row">' + (parentProject
+      ? '<button class="secondary-button" type="button" data-open-project="' + escapeHtml(parentProject.id) + '">← ' + escapeHtml(parentProject.name) + '</button>'
+      : '') + '<button class="secondary-button" type="button" data-project-navigation="back">← Все направления</button></div>',
     '<section class="project-details-page"><div class="mf-section-title"><div><span class="mf-id">' + escapeHtml(project.id) + '</span><h3>' + escapeHtml(project.name) + '</h3></div>' + mfPill(projectStatusLabel(project.status), project.status === 'Active' ? 'green' : 'neutral') + '</div><p>' + escapeHtml(project.description || 'Без описания') + '</p><div class="mf-task-meta"><span>Отдел: <strong>' + escapeHtml(project.department) + '</strong></span><span>Ответственный: <strong>' + escapeHtml(project.ownerEmail || 'Не назначен') + '</strong></span></div>' + createActions + manageActions + '</section>',
     '<section><div class="mf-section-title"><h3>Подгруппы</h3><span>' + children.length + '</span></div>' + (childCards ? '<div class="mf-card-grid departments">' + childCards + '</div>' : '<article class="empty-state"><strong>Подгрупп пока нет</strong><span>Создайте первую подгруппу внутри этого направления.</span></article>') + '</section>',
     '<section><div class="mf-section-title"><h3>Задачи направления</h3><span>' + projectTasks.length + '</span></div>' + projectTaskTreeHtml(projectTasks) + '</section>',
