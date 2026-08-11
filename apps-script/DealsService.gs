@@ -5,7 +5,11 @@ function baFoxDealsSheet_() {
 }
 
 function baFoxDealHeaders_() {
-  return ['Deal ID', 'Partner / Project', 'Direction', 'GEO', 'Product', 'Stage', 'Waiting status', 'Priority', 'Owner Email', 'Co-owner Email', 'Next step', 'Follow-up date', 'Blocker', 'Waiting for partner', 'Waiting for us', 'Tariff / economics', 'API received', 'Documents / compliance', 'Last contact', 'Created at', 'Updated at'];
+  return ['Deal ID', 'Partner / Project', 'Direction', 'GEO', 'Product', 'Stage', 'Waiting status', 'Priority', 'Owner Email', 'Co-owner Email', 'Next step', 'Follow-up date', 'Blocker', 'Waiting for partner', 'Waiting for us', 'Tariff / economics', 'API received', 'Documents / compliance', 'Last contact', 'Created at', 'Updated at', 'Archived'];
+}
+
+function baFoxDealIsArchived_(value) {
+  return value === true || String(value || '').trim().toLowerCase() === 'true';
 }
 
 function baFoxNormalizeDealRow_(row) {
@@ -17,7 +21,7 @@ function baFoxNormalizeDealRow_(row) {
     priority: value(7) || 'Medium', ownerEmail: normalizeWorkspaceEmail_(value(8)),
     coOwnerEmail: normalizeWorkspaceEmail_(value(9)), nextStep: value(10), followUpDate: value(11),
     blocker: value(12), waitingForPartner: value(13), waitingForUs: value(14), economics: value(15),
-    apiReceived: value(16), compliance: value(17), lastContact: value(18), createdAt: value(19), updatedAt: value(20)
+    apiReceived: value(16), compliance: value(17), lastContact: value(18), createdAt: value(19), updatedAt: value(20), archived: baFoxDealIsArchived_(value(21))
   };
 }
 
@@ -37,6 +41,9 @@ function baFoxEnsureDealsSheet_(request) {
   var sheet = baFoxDealsSheet_();
   if (!sheet) sheet = spreadsheet.insertSheet(BA_FOX_CONFIG.SHEETS.DEALS);
   if (sheet.getLastRow() === 0) sheet.getRange(1, 1, 1, baFoxDealHeaders_().length).setValues([baFoxDealHeaders_()]);
+  if (sheet.getLastColumn() < baFoxDealHeaders_().length || baFoxSafeString(sheet.getRange(1, baFoxDealHeaders_().length).getValue()) !== 'Archived') {
+    sheet.getRange(1, baFoxDealHeaders_().length).setValue('Archived');
+  }
   sheet.setFrozenRows(1);
   return baFoxOk({ sheet: BA_FOX_CONFIG.SHEETS.DEALS, headers: baFoxDealHeaders_() });
 }
@@ -50,7 +57,7 @@ function baFoxDealAllowedKeys_() {
   return ['route', 'callback', 'token', 'idToken', 'identityToken', 'credential', 'googleCredential', 'dealId',
     'partner', 'direction', 'geo', 'product', 'stage', 'waitingStatus', 'priority', 'ownerEmail', 'coOwnerEmail',
     'nextStep', 'followUpDate', 'blocker', 'waitingForPartner', 'waitingForUs', 'economics', 'apiReceived',
-    'compliance', 'lastContact'];
+    'compliance', 'lastContact', 'archived'];
 }
 
 function baFoxFindDealRow_(dealId) {
@@ -84,16 +91,19 @@ function baFoxDealFromRequest_(request, previous, authorization) {
     ownerEmail: normalizeWorkspaceEmail_(pick('ownerEmail', previous.ownerEmail)), coOwnerEmail: normalizeWorkspaceEmail_(pick('coOwnerEmail', previous.coOwnerEmail)),
     nextStep: pick('nextStep', previous.nextStep), followUpDate: pick('followUpDate', previous.followUpDate), blocker: pick('blocker', previous.blocker),
     waitingForPartner: pick('waitingForPartner', previous.waitingForPartner), waitingForUs: pick('waitingForUs', previous.waitingForUs), economics: pick('economics', previous.economics),
-    apiReceived: pick('apiReceived', previous.apiReceived), compliance: pick('compliance', previous.compliance), lastContact: pick('lastContact', previous.lastContact),
+    apiReceived: pick('apiReceived', previous.apiReceived), compliance: pick('compliance', previous.compliance), lastContact: pick('lastContact', previous.lastContact), archived: has('archived') ? baFoxDealIsArchived_(request.archived) : previous.archived === true,
     createdAt: previous.createdAt, updatedAt: baFoxIsoNow(), createdByEmail: previous.createdByEmail || authorization.profile.email
   };
 }
 
 function baFoxWriteDealRow_(sheet, rowNumber, deal) {
+  if (sheet.getLastColumn() < baFoxDealHeaders_().length || baFoxSafeString(sheet.getRange(1, baFoxDealHeaders_().length).getValue()) !== 'Archived') {
+    sheet.getRange(1, baFoxDealHeaders_().length).setValue('Archived');
+  }
   sheet.getRange(rowNumber, 1, 1, baFoxDealHeaders_().length).setValues([[
     deal.id, deal.partner, deal.direction, deal.geo, deal.product, deal.stage, deal.waitingStatus, deal.priority,
     deal.ownerEmail, deal.coOwnerEmail, deal.nextStep, deal.followUpDate, deal.blocker, deal.waitingForPartner,
-    deal.waitingForUs, deal.economics, deal.apiReceived, deal.compliance, deal.lastContact, deal.createdAt, deal.updatedAt
+    deal.waitingForUs, deal.economics, deal.apiReceived, deal.compliance, deal.lastContact, deal.createdAt, deal.updatedAt, deal.archived === true
   ]]);
 }
 
@@ -110,7 +120,7 @@ function baFoxCreateDeal_(request) {
   var authorization = baFoxAuthorizeDealWrite_(normalized);
   if (!authorization.ok) return authorization.error;
   var now = baFoxNow();
-  var deal = baFoxDealFromRequest_(normalized, { id: baFoxDealId_(now), partner: '', direction: '', geo: '', product: '', stage: '', waitingStatus: '', priority: '', ownerEmail: '', coOwnerEmail: '', nextStep: '', followUpDate: '', blocker: '', waitingForPartner: '', waitingForUs: '', economics: '', apiReceived: '', compliance: '', lastContact: '', createdAt: baFoxIsoNow(), createdByEmail: authorization.profile.email }, authorization);
+  var deal = baFoxDealFromRequest_(normalized, { id: baFoxDealId_(now), partner: '', direction: '', geo: '', product: '', stage: '', waitingStatus: '', priority: '', ownerEmail: '', coOwnerEmail: '', nextStep: '', followUpDate: '', blocker: '', waitingForPartner: '', waitingForUs: '', economics: '', apiReceived: '', compliance: '', lastContact: '', archived: false, createdAt: baFoxIsoNow(), createdByEmail: authorization.profile.email }, authorization);
   var validation = baFoxValidateDeal_(deal);
   if (validation) return validation;
   var sheet = baFoxDealsSheet_();

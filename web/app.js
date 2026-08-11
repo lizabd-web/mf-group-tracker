@@ -3626,15 +3626,6 @@ function managementMiniGrid(metrics) {
 
 function renderStage30Dashboard() {
   const metrics = stage30ManagementMetrics();
-  const firstLook = uniqueTasks([]
-    .concat(metrics.overdue)
-    .concat(metrics.blockers)
-    .concat(metrics.waiting)
-    .concat(metrics.withoutOwner)
-    .concat(metrics.withoutDirection))
-    .filter(function (task) { return !isFinalTask(task); })
-    .sort(compareTaskUrgency)
-    .slice(0, 5);
   const ownerRows = ownerWorkloadRows(metrics.active);
   const directionRows = directionWorkloadRows(metrics.active).filter(function (row) {
     return row.active.length || row.id === 'unassigned';
@@ -3660,41 +3651,14 @@ function renderStage30Dashboard() {
 
   elements.taskList.innerHTML = [
     '<section class="mf-dashboard stage30-dashboard">',
-    '<article class="mf-exec-card">',
-    '<span>Главное сейчас</span>',
-    '<h3>' + escapeHtml(firstLook.length ? 'Сначала просроченные задачи, ожидания и задачи без ответственного.' : 'Критических сигналов сейчас нет.') + '</h3>',
-    '<p>Сводка собрана из актуальных задач Google Sheets.</p>',
-    '</article>',
-    '<div class="mf-two-column">',
-    '<section><div class="mf-section-title"><h3>Что требует внимания</h3><span>' + firstLook.length + '</span></div>' + managementTaskList(firstLook, 'Нет срочных сигналов', 'Просроченных задач, блокеров или пустых владельцев не найдено.', 5) + '</section>',
-    '<section><div class="mf-section-title"><h3>Риски</h3><span>' + uniqueTasks([].concat(metrics.overdue).concat(metrics.blockers).concat(metrics.waiting)).length + '</span></div>' + managementTaskList(uniqueTasks([].concat(metrics.overdue).concat(metrics.blockers).concat(metrics.waiting)), 'Риски не найдены', 'Просрочки, блокеров и ожиданий в текущей выборке нет.', 5) + '</section>',
-    '</div>',
-    '<section><div class="mf-section-title"><h3>Команда</h3><span>' + ownerRows.filter(function (row) { return row.active.length; }).length + '</span></div><div class="mf-density-list">' + ownerDensity + '</div></section>',
-    '<section><div class="mf-section-title"><h3>Направления</h3><span>' + directionRows.length + '</span></div><div class="mf-density-list">' + directionDensity + '</div></section>',
+    '<section><div class="mf-section-title"><h3>График нагрузки по команде</h3><span>' + ownerRows.filter(function (row) { return row.active.length; }).length + '</span></div><div class="mf-density-list">' + ownerDensity + '</div></section>',
+    '<section><div class="mf-section-title"><h3>График нагрузки по направлениям</h3><span>' + directionRows.length + '</span></div><div class="mf-density-list">' + directionDensity + '</div></section>',
     '</section>',
   ].join('');
 }
 
 function renderMfDashboard() {
-  const profile = identityDisplayProfile();
-  if (profile.accessRole === 'admin' || profile.accessRole === 'executive') {
-    renderStage30Dashboard();
-    return;
-  }
-  const personal = personalLiveTasks(profile).filter(function (task) { return !isFinalTask(task); });
-  const attention = uniqueTasks([]
-    .concat(overdueTasks(personal))
-    .concat(blockedTasks(personal))
-    .concat(waitingTasks(personal)))
-    .sort(compareTaskUrgency);
-  const nextTasks = personal.slice().sort(compareTaskUrgency).slice(0, 5);
-  elements.taskList.innerHTML = [
-    '<section class="mf-page-grid">',
-    '<article class="mf-exec-card compact"><span>Мой рабочий день</span><h3>' + escapeHtml(attention.length ? 'Есть задачи, которые требуют внимания.' : 'Срочных сигналов по вашим задачам нет.') + '</h3><p>Здесь показываются только задачи, где вы указаны основным ответственным или соисполнителем.</p></article>',
-    '<section><div class="mf-section-title"><h3>Требуют внимания</h3><span>' + attention.length + '</span></div>' + (attention.length ? '<div class="task-group-list">' + attention.slice(0, 5).map(taskCardHtml).join('') + '</div>' : '<article class="empty-state"><strong>Всё спокойно</strong><span>Просрочка, блокеры и ожидания не найдены.</span></article>') + '</section>',
-    '<section><div class="mf-section-title"><h3>Следующие задачи</h3><span>' + nextTasks.length + '</span></div>' + (nextTasks.length ? '<div class="task-group-list">' + nextTasks.map(taskCardHtml).join('') + '</div>' : '<article class="empty-state"><strong>Очередь пуста</strong><span>Попросите назначить вас ответственным или участником задачи.</span></article>') + '</section>',
-    '</section>',
-  ].join('');
+  renderStage30Dashboard();
 }
 
 function renderMfMyTasks() {
@@ -3904,6 +3868,7 @@ let activeDealDirection = 'bizdev';
 let activeDealWaiting = 'all';
 let activeDealPriority = 'all';
 let activeDealOwner = 'all';
+let showArchivedDeals = false;
 
 function normalizedDealText(value) {
   return String(value || '').trim().toLocaleLowerCase('ru');
@@ -3940,25 +3905,28 @@ function renderMfFunnel() {
   const deals = dashboardDeals();
   const profile = identityDisplayProfile();
   const canManageDeals = Boolean(profile.permissions && profile.permissions.canManageProjects);
-  const filtered = deals.filter(function(deal) { return dealMatchesActiveFilters(deal, profile); });
+  const archivedDeals = deals.filter(function(deal) { return deal.archived === true; });
+  const filtered = deals.filter(function(deal) {
+    return (showArchivedDeals ? deal.archived === true : deal.archived !== true) && dealMatchesActiveFilters(deal, profile);
+  });
   elements.workspaceControls.innerHTML = [
     '<label class="filter-control">Направление <select id="dealDirectionFilter"><option value="bizdev" selected>BizDev</option></select></label>',
     '<label class="filter-control">Статус <select id="dealWaitingFilter"><option value="all">Все</option>' + bizDevWaitingStatuses.map(function(status) { return '<option value="' + escapeHtml(status) + '"' + (activeDealWaiting === status ? ' selected' : '') + '>' + escapeHtml(status) + '</option>'; }).join('') + '</select></label>',
     '<label class="filter-control">Приоритет <select id="dealPriorityFilter"><option value="all">Все</option><option value="High"' + (activeDealPriority === 'High' ? ' selected' : '') + '>Высокий</option><option value="Medium"' + (activeDealPriority === 'Medium' ? ' selected' : '') + '>Средний</option><option value="Low"' + (activeDealPriority === 'Low' ? ' selected' : '') + '>Низкий</option></select></label>',
     '<label class="filter-control">Ответственный <select id="dealOwnerFilter"><option value="all">Все</option><option value="mine"' + (activeDealOwner === 'mine' ? ' selected' : '') + '>Мои карточки</option></select></label>',
-    canManageDeals ? '<button class="secondary-button" type="button" data-deal-action="import">Импорт строк</button><button class="primary-button" type="button" data-deal-action="create">Добавить карточку</button>' : ''
+    canManageDeals ? '<button class="secondary-button" type="button" data-deal-action="toggle-archive">' + (showArchivedDeals ? 'Активные карточки' : 'Архив карточек · ' + archivedDeals.length) + '</button><button class="secondary-button" type="button" data-deal-action="import">Импорт строк</button><button class="primary-button" type="button" data-deal-action="create">Добавить карточку</button>' : ''
   ].join('');
-  if (!deals.length) {
+  if (!deals.length || (!filtered.length && showArchivedDeals)) {
     elements.taskList.innerHTML = '<article class="empty-state"><strong>Воронка пока не создана</strong><span>Лист Deals станет единым реестром партнёров. Существующие задачи останутся отдельными действиями внутри карточек.</span></article>';
     return;
   }
-  elements.taskList.innerHTML = '<p class="bizdev-funnel-help">Перетаскивайте карточки между колонками или выберите этап прямо в карточке.</p><section class="bizdev-funnel">' + bizDevStages.map(function(stage) {
+  elements.taskList.innerHTML = '<p class="bizdev-funnel-help">' + (showArchivedDeals ? 'Архивные карточки можно открыть или восстановить.' : 'Перетаскивайте карточки между колонками или выберите этап прямо в карточке.') + '</p><section class="bizdev-funnel">' + bizDevStages.map(function(stage) {
     const stageDeals = filtered.filter(function(deal) { return (deal.stage || bizDevStages[0]) === stage; });
     return '<section class="bizdev-stage" data-deal-stage="' + escapeHtml(stage) + '"><div class="mf-section-title"><h3>' + escapeHtml(stage) + '</h3><span>' + stageDeals.length + '</span></div><div class="bizdev-deal-list">' + (stageDeals.length ? stageDeals.map(function(deal) {
-      const moveControl = canManageDeals
+      const moveControl = canManageDeals && !showArchivedDeals
         ? '<label class="bizdev-move-control"><span>Этап</span><select data-deal-move data-deal-id="' + escapeHtml(deal.id) + '">' + bizDevStages.map(function(optionStage) { return '<option value="' + escapeHtml(optionStage) + '"' + (optionStage === (deal.stage || bizDevStages[0]) ? ' selected' : '') + '>' + escapeHtml(optionStage) + '</option>'; }).join('') + '</select></label>'
         : '';
-      return '<article class="bizdev-deal-card"' + (canManageDeals ? ' draggable="true" data-draggable-deal-id="' + escapeHtml(deal.id) + '"' : '') + '><div class="mf-task-head"><strong>' + escapeHtml(deal.partner) + '</strong>' + mfPill(deal.waitingStatus || 'Активно', deal.waitingStatus === 'Blocked' ? 'critical' : 'neutral') + '</div><p class="bizdev-deal-context">' + escapeHtml(deal.direction || 'BizDev') + (deal.geo ? ' · ' + escapeHtml(deal.geo) : '') + '</p><p class="bizdev-deal-next"><strong>Следующий шаг:</strong> ' + escapeHtml(deal.nextStep || 'Не указан') + '</p>' + (deal.followUpDate ? '<p class="bizdev-deal-follow-up">Follow-up: ' + escapeHtml(deal.followUpDate) + '</p>' : '') + (deal.blocker ? '<p class="task-blocker"><strong>Блокер:</strong> ' + escapeHtml(deal.blocker) + '</p>' : '') + funnelTaskPreviewHtml(deal) + '<div class="mf-task-meta"><span>' + escapeHtml(deal.priority || 'Medium') + '</span><span>' + escapeHtml(deal.ownerEmail || 'Ответственный не назначен') + '</span></div>' + moveControl + (canManageDeals ? '<div class="mf-action-row bizdev-card-actions"><button class="secondary-button" type="button" data-deal-action="edit" data-deal-id="' + escapeHtml(deal.id) + '">Открыть</button><button class="secondary-button" type="button" data-deal-action="create-task" data-deal-id="' + escapeHtml(deal.id) + '">Задача</button></div>' : '') + '</article>';
+      return '<article class="bizdev-deal-card"' + (canManageDeals && !showArchivedDeals ? ' draggable="true" data-draggable-deal-id="' + escapeHtml(deal.id) + '"' : '') + '><div class="mf-task-head"><strong>' + escapeHtml(deal.partner) + '</strong>' + mfPill(deal.waitingStatus || 'Активно', deal.waitingStatus === 'Blocked' ? 'critical' : 'neutral') + '</div><p class="bizdev-deal-context">' + escapeHtml(deal.direction || 'BizDev') + (deal.geo ? ' · ' + escapeHtml(deal.geo) : '') + '</p><p class="bizdev-deal-next"><strong>Следующий шаг:</strong> ' + escapeHtml(deal.nextStep || 'Не указан') + '</p>' + (deal.followUpDate ? '<p class="bizdev-deal-follow-up">Follow-up: ' + escapeHtml(deal.followUpDate) + '</p>' : '') + (deal.blocker ? '<p class="task-blocker"><strong>Блокер:</strong> ' + escapeHtml(deal.blocker) + '</p>' : '') + funnelTaskPreviewHtml(deal) + '<div class="mf-task-meta"><span>' + escapeHtml(deal.priority || 'Medium') + '</span><span>' + escapeHtml(deal.ownerEmail || 'Ответственный не назначен') + '</span></div>' + moveControl + (canManageDeals ? '<div class="mf-action-row bizdev-card-actions"><button class="secondary-button" type="button" data-deal-action="edit" data-deal-id="' + escapeHtml(deal.id) + '">Открыть</button>' + (showArchivedDeals ? '<button class="secondary-button" type="button" data-deal-action="restore" data-deal-id="' + escapeHtml(deal.id) + '">Восстановить</button>' : '<button class="secondary-button" type="button" data-deal-action="create-task" data-deal-id="' + escapeHtml(deal.id) + '">Задача</button><button class="secondary-button" type="button" data-deal-action="archive" data-deal-id="' + escapeHtml(deal.id) + '">В архив</button>') + '</div>' : '') + '</article>';
     }).join('') : '<p class="project-tree-empty">Нет сделок на этой стадии.</p>') + '</div></section>';
   }).join('') + '</section>';
 }
@@ -4019,6 +3987,20 @@ async function moveDealToStage(dealId, stage) {
     render();
   } catch (error) {
     flashMessage = error && error.message ? error.message : 'Не удалось перенести карточку.';
+    render();
+  }
+}
+
+async function setDealArchived(dealId, archived) {
+  const deal = dashboardDeals().find(function(item) { return item.id === dealId; });
+  if (!deal || !safeWritesEnabled()) return;
+  try {
+    await BAFoxClient.updateDeal(Object.assign({ dealId: deal.id, archived: archived === true }, identityRequestParams()));
+    await loadDashboard({ forceRefresh: true });
+    flashMessage = archived ? 'Карточка «' + deal.partner + '» перенесена в архив.' : 'Карточка «' + deal.partner + '» восстановлена.';
+    render();
+  } catch (error) {
+    flashMessage = error && error.message ? error.message : 'Не удалось изменить архив карточки.';
     render();
   }
 }
@@ -5886,6 +5868,10 @@ elements.workspaceControls.addEventListener('click', function (event) {
   const dealActionButton = event.target.closest('[data-deal-action]');
   if (dealActionButton) {
     if (dealActionButton.dataset.dealAction === 'create-task') openCreateDealTask(dealActionButton.dataset.dealId);
+    else if (dealActionButton.dataset.dealAction === 'toggle-archive') {
+      showArchivedDeals = !showArchivedDeals;
+      renderMfFunnel();
+    }
     else if (dealActionButton.dataset.dealAction === 'import') openImportDealsModal();
     else openEditDealModal(dealActionButton.dataset.dealAction === 'edit' ? dealActionButton.dataset.dealId : '');
     return;
@@ -5901,6 +5887,8 @@ elements.taskList.addEventListener('click', function (event) {
   const dealActionButton = event.target.closest('[data-deal-action]');
   if (dealActionButton) {
     if (dealActionButton.dataset.dealAction === 'create-task') openCreateDealTask(dealActionButton.dataset.dealId);
+    else if (dealActionButton.dataset.dealAction === 'archive') setDealArchived(dealActionButton.dataset.dealId, true);
+    else if (dealActionButton.dataset.dealAction === 'restore') setDealArchived(dealActionButton.dataset.dealId, false);
     else openEditDealModal(dealActionButton.dataset.dealAction === 'edit' ? dealActionButton.dataset.dealId : '');
     return;
   }
