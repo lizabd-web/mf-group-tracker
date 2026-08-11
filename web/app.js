@@ -735,7 +735,9 @@ let activeCategoryFilter = 'all';
 let activeOwnerFilter = 'all';
 let taskSearchQuery = '';
 let activeAuditFilter = 'all';
-let sidebarOpen = false;
+// Desktop starts with navigation visible. On narrow screens the same control
+// remains a closed, overlay drawer until the user opens it.
+let sidebarOpen = window.matchMedia('(min-width: 981px)').matches;
 let manualFocusTaskIds = {};
 let reportPreview = { type: 'daySummary', text: '' };
 let dashboardState = BAFoxClient.createLoadingState('dashboard');
@@ -4760,6 +4762,11 @@ function renderSidebarState() {
   document.body.classList.toggle('sidebar-open', sidebarOpen);
   elements.sidebarShell.setAttribute('aria-hidden', sidebarOpen ? 'false' : 'true');
   elements.sidebarToggle.setAttribute('aria-expanded', sidebarOpen ? 'true' : 'false');
+  elements.sidebarToggle.setAttribute('aria-label', sidebarOpen ? 'Свернуть меню' : 'Развернуть меню');
+  const toggleText = elements.sidebarToggle.querySelector('.visually-hidden');
+  if (toggleText) {
+    toggleText.textContent = sidebarOpen ? 'Свернуть меню' : 'Развернуть меню';
+  }
   elements.sidebarBackdrop.hidden = !sidebarOpen;
 }
 
@@ -4797,7 +4804,9 @@ function setTab(tabName) {
     tab.classList.toggle('active', isActive);
     tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
   });
-  setSidebarOpen(false);
+  if (window.matchMedia('(max-width: 980px)').matches) {
+    setSidebarOpen(false);
+  }
   renderPanel();
   loadLazyTabData(tabName);
 }
