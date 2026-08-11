@@ -13,10 +13,13 @@ function dealsContext() {
   ];
   const sheet = {
     getLastRow() { return rows.length; },
+    getLastColumn() { return Math.max.apply(null, rows.map((row) => row.length)); },
     getDataRange() { return { getValues() { return rows.map((row) => row.slice()); } }; },
     getRange(row, column, count) {
       return {
         setValues(values) { rows[row - 1] = values[0].slice(); },
+        setValue(value) { rows[row - 1][column - 1] = value; },
+        getValue() { return rows[row - 1][column - 1]; },
         getValues() { return rows.slice(row - 1, row - 1 + (count || 1)).map((item) => item.slice()); },
       };
     },
@@ -61,4 +64,19 @@ test('deal creation requires a partner and a direction', function () {
   const result = context.baFoxCreateDeal_({ partner: 'New provider' });
   assert.equal(result.ok, false);
   assert.equal(result.error.code, 'VALIDATION_ERROR');
+});
+
+test('deal archive is reversible and keeps the card identity', function () {
+  const { context, rows } = dealsContext();
+  const archived = context.baFoxUpdateDeal_({ dealId: 'DL-1', archived: true });
+  assert.equal(archived.ok, true);
+  assert.equal(archived.data.deal.id, 'DL-1');
+  assert.equal(archived.data.deal.archived, true);
+  assert.equal(rows[0][21], 'Archived');
+  assert.equal(rows[1][21], true);
+
+  const restored = context.baFoxUpdateDeal_({ dealId: 'DL-1', archived: false });
+  assert.equal(restored.ok, true);
+  assert.equal(restored.data.deal.archived, false);
+  assert.equal(rows[1][21], false);
 });
