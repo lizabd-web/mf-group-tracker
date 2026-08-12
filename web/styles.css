@@ -4690,3 +4690,12 @@ body[data-mf-theme="light"] .home-action:hover strong {
     padding: 12px;
   }
 }
+
+/* Start the sticky header at the viewport edge so it never shifts upward first. */
+.app-shell {
+  padding-top: 0;
+}
+
+.hero-card {
+  top: 0;
+}
