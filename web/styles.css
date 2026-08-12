@@ -2623,10 +2623,7 @@ h1 {
 
 @media (max-width: 920px) {
   .hero-card {
-    /* Keep the primary navigation and create action within reach while scrolling. */
-    position: sticky;
-    top: 8px;
-    z-index: 10;
+    position: static;
     align-items: flex-start;
   }
 
@@ -4688,59 +4685,5 @@ body[data-mf-theme="light"] .home-action:hover strong {
   .workspace-layout .tab {
     min-height: 54px;
     padding: 12px;
-  }
-}
-
-/* Keep the entire white dashboard header fixed while reserving its measured space below. */
-.app-shell {
-  padding-top: calc(var(--fixed-header-space, 0px) + 14px);
-}
-
-.hero-card {
-  display: block;
-  position: fixed;
-  top: 0;
-  right: max(22px, calc((100% - 1276px) / 2));
-  left: max(22px, calc((100% - 1276px) / 2));
-  z-index: 10;
-  width: auto;
-  margin-bottom: 0;
-}
-
-.hero-title {
-  text-align: center;
-}
-
-.hero-title .hero-copy {
-  max-width: none;
-}
-
-.hero-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 14px;
-}
-
-.hero-actions .hero-status {
-  grid-auto-flow: column;
-  align-items: center;
-}
-
-@media (max-width: 780px) {
-  .hero-card {
-    right: 8px;
-    left: 8px;
-  }
-
-  .hero-actions,
-  .hero-actions .hero-status {
-    align-items: stretch;
-    grid-auto-flow: row;
-  }
-
-  .hero-actions {
-    align-items: flex-start;
   }
 }
