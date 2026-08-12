@@ -4697,6 +4697,7 @@ body[data-mf-theme="light"] .home-action:hover strong {
 }
 
 .hero-card {
+  display: block;
   position: fixed;
   top: 0;
   right: max(22px, calc((100% - 1276px) / 2));
@@ -4706,9 +4707,40 @@ body[data-mf-theme="light"] .home-action:hover strong {
   margin-bottom: 0;
 }
 
+.hero-title {
+  text-align: center;
+}
+
+.hero-title .hero-copy {
+  max-width: none;
+}
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.hero-actions .hero-status {
+  grid-auto-flow: column;
+  align-items: center;
+}
+
 @media (max-width: 780px) {
   .hero-card {
     right: 8px;
     left: 8px;
+  }
+
+  .hero-actions,
+  .hero-actions .hero-status {
+    align-items: stretch;
+    grid-auto-flow: row;
+  }
+
+  .hero-actions {
+    align-items: flex-start;
   }
 }
