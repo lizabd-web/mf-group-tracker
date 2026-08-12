@@ -4687,3 +4687,45 @@ body[data-mf-theme="light"] .home-action:hover strong {
     padding: 12px;
   }
 }
+
+/* The title belongs outside the scroll container. Only the dashboard body scrolls. */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  min-height: 0;
+  height: 100dvh;
+  padding: 0;
+  overflow: hidden;
+}
+
+.hero-card {
+  position: relative;
+  top: auto;
+  z-index: 10;
+  width: min(1276px, calc(100% - 44px));
+  margin: 0 auto;
+}
+
+.dashboard-scroll-area {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px max(22px, calc((100% - 1276px) / 2)) 42px;
+}
+
+@media (max-width: 780px) {
+  .hero-card {
+    width: calc(100% - 16px);
+  }
+
+  .dashboard-scroll-area {
+    padding: 8px 8px 24px;
+  }
+}
