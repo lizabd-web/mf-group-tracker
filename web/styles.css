@@ -2623,7 +2623,10 @@ h1 {
 
 @media (max-width: 920px) {
   .hero-card {
-    position: static;
+    /* Keep the primary navigation and create action within reach while scrolling. */
+    position: sticky;
+    top: 8px;
+    z-index: 10;
     align-items: flex-start;
   }
 
