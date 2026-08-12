@@ -30,8 +30,6 @@ const viewLabels = Object.freeze({
 });
 
 const elements = {
-  appShell: document.querySelector('.app-shell'),
-  heroCard: document.querySelector('.hero-card'),
   sidebarToggle: document.querySelector('#sidebarToggle'),
   sidebarShell: document.querySelector('#sidebarShell'),
   sidebarBackdrop: document.querySelector('#sidebarBackdrop'),
@@ -93,22 +91,6 @@ const elements = {
   closeImportDeals: document.querySelector('#closeImportDeals'),
   closeImportDealsTop: document.querySelector('#closeImportDealsTop'),
 };
-
-function syncFixedHeaderSpace() {
-  if (!elements.appShell || !elements.heroCard) {
-    return;
-  }
-  document.documentElement.style.setProperty('--fixed-header-space', Math.ceil(elements.heroCard.getBoundingClientRect().height) + 'px');
-}
-
-if (elements.heroCard) {
-  syncFixedHeaderSpace();
-  if ('ResizeObserver' in window) {
-    new ResizeObserver(syncFixedHeaderSpace).observe(elements.heroCard);
-  } else {
-    window.addEventListener('resize', syncFixedHeaderSpace);
-  }
-}
 
 const auditFilters = Object.freeze([
   { id: 'all', label: 'Все', issueTypes: [] },

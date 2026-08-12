@@ -6,28 +6,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#070b1a" />
   <title>MF Group Tracker - Операционный дашборд</title>
-  <link rel="stylesheet" href="styles.css?v=stage48" />
+  <link rel="stylesheet" href="styles.css?v=stage44" />
 </head>
 <body>
   <main class="app-shell">
     <header class="hero-card">
-      <div class="hero-title">
-        <p class="eyebrow">MF Group Tracker</p>
-        <h1>Операционный дашборд</h1>
-        <p class="hero-copy">Командные задачи, зависимости, блокеры и отчёты в одном дашборде.</p>
-      </div>
-    </header>
-    <div class="hero-actions" aria-label="Действия дашборда">
       <button class="sidebar-toggle" type="button" id="sidebarToggle" aria-label="Свернуть меню" aria-controls="sidebarShell" aria-expanded="true">
         <span aria-hidden="true">☰</span>
         <span class="visually-hidden">Свернуть меню</span>
       </button>
+      <div>
+        <p class="eyebrow">MF Group Tracker</p>
+        <h1>Операционный дашборд</h1>
+        <p class="hero-copy">Командные задачи, зависимости, блокеры и отчёты в одном дашборде.</p>
+      </div>
       <div class="hero-status">
         <span class="read-only-pill" id="writeModePill">Только просмотр</span>
         <div class="date-pill" id="todayLabel">Время Бангкока</div>
         <button class="create-task-button" type="button" id="createTaskButton" disabled>Только просмотр</button>
       </div>
-    </div>
+    </header>
 
     <div class="mode-banner" id="modeBanner" role="status">
       <strong>Проверяем доступ</strong>
@@ -348,6 +346,6 @@
   <script src="api/baFoxMockData.js?v=stage41"></script>
   <script src="api/baFoxUiState.js?v=stage41"></script>
   <script src="api/baFoxClient.js?v=stage41"></script>
-  <script src="app.js?v=stage47"></script>
+  <script src="app.js?v=stage46"></script>
 </body>
 </html>
